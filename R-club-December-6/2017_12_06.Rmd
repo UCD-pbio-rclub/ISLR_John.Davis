@@ -182,10 +182,12 @@ confint(fit3)
 ```{r}
 
 results <- lapply(Boston[,2:ncol(Boston)], function(x) lm(crim~x, data = Boston))
+
 for(i in 1:13){
   print(names(results[i]))
   print(summary(results[[i]]))
-  par(mfrow=c(2,2))
-  plot(results[[i]])
+  par(mfrow=c(1,1))
+  plot(Boston[,1]~Boston[,i+1])
+  abline(results[[i]])
 }
 ```
