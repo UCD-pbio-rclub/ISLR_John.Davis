@@ -121,8 +121,8 @@ as.formula(
   paste0("Sales ~ ", round(coefficients(lm.fit)[1],2), "", 
     paste(sprintf(" %+.2f*%s ", 
                   coefficients(lm.fit)[-1],  
-                  names(coefficients(lm.fit)[-1])), " + error", 
-          collapse="")
+                  names(coefficients(lm.fit)[-1])),
+          collapse="")," + error"
   )
 )
 ```

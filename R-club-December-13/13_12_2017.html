@@ -460,12 +460,12 @@ summary(lm.fit)</code></pre>
   paste0(&quot;Sales ~ &quot;, round(coefficients(lm.fit)[1],2), &quot;&quot;, 
     paste(sprintf(&quot; %+.2f*%s &quot;, 
                   coefficients(lm.fit)[-1],  
-                  names(coefficients(lm.fit)[-1])), &quot; + error&quot;, 
-          collapse=&quot;&quot;)
+                  names(coefficients(lm.fit)[-1])),
+          collapse=&quot;&quot;),&quot; + error&quot;
   )
 )</code></pre>
-<pre><code>## Sales ~ 13.04 - 0.05 * Price + error - 0.02 * UrbanYes + error + 
-##     1.2 * USYes + error</code></pre>
+<pre><code>## Sales ~ 13.04 - 0.05 * Price - 0.02 * UrbanYes + 1.2 * USYes + 
+##     error</code></pre>
 <ol start="4" style="list-style-type: lower-alpha">
 <li>For which of the predictors can you reject the null hypothesis H0 : βj = 0?</li>
 </ol>
