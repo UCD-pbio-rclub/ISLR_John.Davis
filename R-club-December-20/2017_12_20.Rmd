@@ -1,0 +1,282 @@
+---
+title: "2017_12_20"
+author: "John D."
+date: "December 18, 2017"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 3. Linear Regression
+
+### 3.6.3 Multiple Linear Regression
+
+```{r}
+library(MASS)
+lm.fit=lm(medv∼lstat+age ,data=Boston )
+summary(lm.fit)
+
+lm.fit=lm(medv∼.,data=Boston)
+summary(lm.fit)
+
+library (car)
+vif(lm.fit)
+
+lm.fit1=lm(medv∼.-age ,data=Boston )
+summary(lm.fit1)
+
+lm.fit1=update(lm.fit , ∼.-age)
+summary(lm.fit1)
+```
+
+### 3.6.4 Interaction Terms
+
+```{r}
+summary(lm(medv∼lstat*age ,data=Boston))
+```
+
+### 3.6.5 Non-linear Transformations of the Predictors
+
+```{r}
+lm.fit2=lm(medv∼lstat+I(lstat^2), data=Boston)
+summary(lm.fit2)
+
+lm.fit=lm(medv∼lstat, data = Boston)
+anova(lm.fit ,lm.fit2)
+
+par(mfrow=c(2,2))
+plot(lm.fit2)
+
+lm.fit5=lm(medv∼poly(lstat ,5), data = Boston)
+summary(lm.fit5)
+
+summary(lm(medv∼log(rm),data=Boston))
+```
+
+### 3.6.6 Qualitative Predictors
+
+```{r}
+library(ISLR)
+#fix(Carseats)
+names(Carseats)
+
+lm.fit=lm(Sales∼.+Income :Advertising +Price:Age ,data=Carseats)
+summary(lm.fit)
+
+attach(Carseats)
+contrasts(ShelveLoc)
+
+```
+
+### 3.6.7 Writing Function
+
+```{r}
+#LoadLibraries
+#LoadLibraries()
+
+LoadLibraries= function (){
+library(ISLR)
+library(MASS)
+print("The libraries have been loaded.")
+}
+
+LoadLibraries
+LoadLibraries()
+```
+
+## 3.7 Exercises
+
+3. Suppose we have a data set with five predictors, X1 = GPA, X2 = IQ, X3 = Gender (1 for Female and 0 for Male), X4 = Interaction between GPA and IQ, and X5 = Interaction between GPA and Gender. The response is starting salary after graduation (in thousands of dollars). Suppose we use least squares to fit the model, and get βˆ0 = 50, βˆ1 = 20, βˆ2 = 0.07, βˆ3 = 35, βˆ4 = 0.01, βˆ5 = −10.
+
+  (a) Which answer is correct, and why?
+    i. For a fixed value of IQ and GPA, males earn more on average than females.
+    ii. For a fixed value of IQ and GPA, females earn more on average than males.
+    iii. For a fixed value of IQ and GPA, males earn more on average than females provided that the GPA is high enough.
+    iv. For a fixed value of IQ and GPA, females earn more on average than males provided that the GPA is high enough.
+    
+```{r}
+
+library(ggplot2)
+library(reshape2)
+library(purrr)
+
+SalaryCalc <- function(gpa,iq,gender){
+  betas <- c(50,20,.07,35,.01,-10)
+  return(betas[1] + betas[2]*gpa + betas[3]*iq + betas[4]*gender + betas[5]*gpa*iq + betas[6]*gpa*gender)
+}
+
+gpas <- seq(from = 0, to = 5, length.out = 21)
+iqs <- seq(from = 50, to = 150, length.out = 21)
+males <- sapply(gpas, function(x) SalaryCalc(x,100,0))
+females <- sapply(gpas, function(x) SalaryCalc(x,100,1))
+tots <- data.frame(cbind(gpas,males,females))
+
+tots.m <- melt(tots, id.vars = "gpas")
+colnames(tots.m) <- c("GPA", "Gender", "Starting_Salary")
+ggplot(tots.m, aes(GPA,Starting_Salary, color = Gender)) +
+  geom_line() +
+  ggtitle("IQ set at 100")
+```
+
+  iii is correct. At at GPA of 3.5 and above with a fixed IQ of 100 men on average make more.
+
+  (b) Predict the salary of a female with IQ of 110 and a GPA of 4.0.
+  
+```{r}
+SalaryCalc(4.0, 110, 1)
+```
+
+  (c) True or false: Since the coefficient for the GPA/IQ interaction
+term is very small, there is very little evidence of an interaction
+effect. Justify your answer
+
+  False. Just because a coefficient is small does not mean there is little evidence of an interaction. Should look at the p-value of the coefficient. The coefficient could be very small because the scale of the predictors may be extremely large.
+  
+9. This question involves the use of multiple linear regression on the Auto data set.
+
+  (a) Produce a scatterplot matrix which includes all of the variables in the data set.
+
+```{r}
+dat <- Auto
+pairs(dat)
+```
+  
+  (b) Compute the matrix of correlations between the variables using the function cor(). You will need to exclude the name variable, which is qualitative.
+
+```{r}
+dat2 <- dat[,-9]
+head(dat2)
+cor(dat2)
+symnum(cor(dat2))
+```  
+
+  (c) Use the lm() function to perform a multiple linear regression with mpg as the response and all other variables except name as the predictors. Use the summary() function to print the results. Comment on the output. For instance:
+    i. Is there a relationship between the predictors and the response?
+    ii. Which predictors appear to have a statistically significant relationship to the response?
+    iii. What does the coefficient for the year variable suggest?
+
+```{r}
+lm.fit <- lm(mpg ~ .-name, data = dat)
+
+#or
+#lm.fit <- lm(mpg ~ ., data = dat2)
+
+summary(lm.fit)
+
+```
+
+i. When all predictors are considered together cylinders, horsepower, and acceleration are not found to be significant while the other predictors are.
+
+ii. Displacement, weight, year, and origin all appear to be significant when regressing mpg on all other variables.
+
+iii. The coefficient for year suggests that for each increase 1 year increase in year the mpg of a car increases by .75
+
+  (d) Use the plot() function to produce diagnostic plots of the linear regression fit. Comment on any problems you see with the fit. Do the residual plots suggest any unusually large outliers? Does the leverage plot identify any observations with unusually high leverage?
+  
+```{r}
+par(mfrow=c(2,2))
+plot(lm.fit)
+```
+
+There are definitely points which stand out as outliers. There are also several points which have unusually high leverage
+
+  (e) Use the * and : symbols to fit linear regression models with interaction effects. Do any interactions appear to be statistically significant?
+  
+```{r}
+lm.fit <- lm(mpg ~ horsepower*acceleration, data = Auto)
+summary(lm.fit)
+
+lm.fit <- lm(mpg ~ acceleration + horsepower:acceleration, data = Auto)
+summary(lm.fit)
+
+lm.fit <- lm(mpg ~ cylinders*acceleration, data = Auto)
+summary(lm.fit)
+
+lm.fit <- lm(mpg ~ horsepower*cylinders, data = Auto)
+summary(lm.fit)
+```
+
+There are interactions which are significant
+
+  (f) Try a few different transformations of the variables, such as log(X), √X, X2. Comment on your findings.
+  
+```{r}
+lm.fit <- lm(mpg ~ I(horsepower^2)*acceleration, data = Auto)
+summary(lm.fit)
+
+lm.fit <- lm(mpg ~ log(horsepower)*cylinders, data = Auto)
+summary(lm.fit)
+```
+
+10. This question should be answered using the Carseats data set.
+
+  (a) Fit a multiple regression model to predict Sales using Price, Urban, and US.
+  
+```{r}
+dat <- Carseats
+summary(dat)
+lm.fit <- lm(Sales ~ Price+Urban+US, data = dat)
+summary(lm.fit)
+```
+
+  (b) Provide an interpretation of each coefficient in the model. Be Careful—some of the variables in the model are qualitative!
+  
+```{r}
+summary(lm.fit)$coefficients
+```
+
+As price increases the number of sales decreases. If a store is in an urban area sales goes down although this predictor appears to be insignificant based off its p-value. If the store is in the US sales goes up.
+
+  (c) Write out the model in equation form, being careful to handle the qualitative variables properly
+  
+```{r}
+as.formula(
+  paste0("Sales ~ ", round(coefficients(lm.fit)[1],2), "", 
+    paste(sprintf(" %+.2f*%s ", 
+                  coefficients(lm.fit)[-1],  
+                  names(coefficients(lm.fit)[-1])),
+          collapse="")," + error"
+  )
+)
+```
+
+  (d) For which of the predictors can you reject the null hypothesis H0 : βj = 0?
+  
+For the predictors Price and US we can reject the null hypothesis
+
+  (e) On the basis of your response to the previous question, fit a smaller model that only uses the predictors for which there is evidence of association with the outcome.
+  
+```{r}
+lm.fit2 <- lm(Sales ~ Price+US, data = dat)
+```
+
+  (f) How well do the models in (a) and (e) fit the data?
+
+```{r}
+summary(lm.fit)
+summary(lm.fit2)
+summary(lm.fit)$r.squared-summary(lm.fit2)$r.squared
+
+```
+
+There is not much of a difference between the two models.
+
+  (g) Using the model from (e), obtain 95 % confidence intervals for the coefficient(s).
+
+```{r}
+confint(lm.fit2)
+```
+
+  (h) Is there evidence of outliers or high leverage observations in the
+model from (e)?
+
+```{r}
+par(mfrow=c(2,2))
+plot(lm.fit2)
+```
+
+There doesn't seem to be outliers, but there are high leverage observations
