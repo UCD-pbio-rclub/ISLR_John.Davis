@@ -1,0 +1,114 @@
+---
+title: "2018_01_03"
+author: "John D."
+date: "January 3, 2018"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Exercises
+
+2. Carefully explain the differences between the KNN classifier and KNN regression methods.
+
+KNN (K nearest neighbors) is a nonparametric method which uses surrounding observations to make decisions. In KNN classifer the output is the class which occurs most in the K surrounding neighbors. In KNN regression the output is the average of the K surrounding neighbors. In both cases, when K = 1 the output takes on either the class of value of the closest neighbor.
+
+14. This problem focuses on the collinearity problem.
+  
+  (a) Perform the following commands in R:
+
+```{r}
+set.seed(1)
+x1=runif(100)
+x2=0.5*x1+rnorm(100)/10
+y=2+2*x1+0.3*x2+rnorm(100)
+```
+
+  The last line corresponds to creating a linear model in which y is a function of x1 and x2. Write out the form of the linear model. What are the regression coefficients?
+
+y = 2 + 2*x1 + 0.3*x2 + error
+Coefficients for x1 and x2 are 2 and 0.3 respectively.
+
+  (b) What is the correlation between x1 and x2? Create a scatterplot displaying the relationship between the variables.
+
+```{r}
+plot(x1, x2)
+cor(x1, x2)
+```
+
+  (c) Using this data, fit a least squares regression to predict y using x1 and x2. Describe the results obtained. What are βˆ0, βˆ1, and βˆ2?  How do these relate to the true β0, β1, and β2? Can you reject the null hypothesis H0 : β1 = 0? How about the null hypothesis H0 : β2 = 0?
+  
+```{r}
+fit <- lm(y ~ x1 + x2)
+summary(fit)
+summary(fit)$coefficients
+```
+
+The null hypothesis H0 : β1 = 0 can be rejected, p = .04
+
+The null hypothesis H0 : β2 = 0 cannot be rejected, p = .37
+
+  (d) Now fit a least squares regression to predict y using only x1. Comment on your results. Can you reject the null hypothesis H0 : β1 = 0?
+  
+```{r}
+fit2 <- lm(y ~ x1)
+summary(fit2)
+summary(fit2)$coefficients
+```
+
+the null hypothesis H0 : β1 = 0 can be rejected, p = 2.6e-06
+
+  (e) Now fit a least squares regression to predict y using only x2. Comment on your results. Can you reject the null hypothesis H0 : β1 = 0?
+  
+```{r}
+fit3 <- lm(y ~ x2)
+summary(fit3)
+summary(fit3)$coefficients
+```
+
+The null hypothesis H0 : β1 = 0 can be rejected, p = 1.36e-05
+
+ (f) Do the results obtained in (c)–(e) contradict each other? Explain your answer
+
+```{r}
+library(car)
+vif(fit)
+```
+
+In the first fit we cannot reject the null hypothesis H0 : β2 = 0. In the later fits where we only look at one predictor at a time, we can are able to reject the null hypotheis for the coefficient of x2. This suggests the possibility of collinearity. The results from `vif(fit)` suggests that there is some collinearity present.
+
+  (g) Now suppose we obtain one additional observation, which was unfortunately mismeasured.
+
+```{r}
+x1 <- c(x1, 0.1)
+x2 <- c(x2, 0.8)
+y <- c(y,6)
+```
+
+Re-fit the linear models from (c) to (e) using this new data. What effect does this new observation have on the each of the models? In each model, is this observation an outlier? A high-leverage point? Both? Explain your answers.
+
+```{r}
+fit4 <- lm(y ~ x1 + x2)
+fit5 <- lm(y ~ x1)
+fit6 <- lm(y ~ x2)
+summary(fit4)
+summary(fit4)$coefficients
+vif(fit4)
+par(mfrow=c(2,2))
+plot(fit4)
+summary(fit5)
+summary(fit5)$coefficients
+par(mfrow=c(2,2))
+plot(fit5)
+summary(fit6)
+summary(fit6)$coefficients
+par(mfrow=c(2,2))
+plot(fit6)
+
+```
+
+With both predictors, the null hypothesis for B1 can no longer be rejected, but B2's can be rejected. Both can reject the null when they are separate though. The amount of collinearity has gone down though. In the first model the point has high leverage. In the second model the point is an outlier. In the last model the point has high leverage.

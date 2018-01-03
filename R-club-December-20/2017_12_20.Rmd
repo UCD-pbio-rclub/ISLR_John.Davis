@@ -190,6 +190,9 @@ There are definitely points which stand out as outliers. There are also several 
 lm.fit <- lm(mpg ~ horsepower*acceleration, data = Auto)
 summary(lm.fit)
 
+lm.fit <- lm(mpg ~ acceleration*horsepower, data = Auto)
+summary(lm.fit)
+
 lm.fit <- lm(mpg ~ acceleration + horsepower:acceleration, data = Auto)
 summary(lm.fit)
 
