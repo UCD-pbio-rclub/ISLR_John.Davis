@@ -1,0 +1,190 @@
+---
+title: "2018_01_16"
+author: "John D."
+date: "January 16, 2018"
+output: 
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 4.6.2 Logistic Regression
+
+```{r}
+library(ISLR)
+attach(Smarket)
+glm.fits=glm(Direction∼Lag1+Lag2+Lag3+Lag4+Lag5+Volume,
+data=Smarket ,family=binomial)
+summary(glm.fits)
+
+
+coef(glm.fits)
+summary(glm.fits)$coef
+summary(glm.fits)$coef[,4]
+
+glm.probs=predict(glm.fits,type="response")
+glm.probs [1:10]
+contrasts(Direction)
+
+glm.pred=rep("Down" ,1250)
+glm.pred[glm.probs >.5]=" Up"
+
+table(glm.pred ,Direction)
+(507+145) /1250
+mean(glm.pred==Direction )
+
+
+train=(Year <2005)
+Smarket.2005= Smarket [!train,]
+dim(Smarket.2005)
+Direction.2005=Direction[!train]
+
+glm.fits=glm(Direction∼Lag1+Lag2+Lag3+Lag4+Lag5+Volume,data=Smarket ,family=binomial ,subset=train)
+glm.probs=predict(glm.fits,Smarket.2005, type="response")
+glm.pred=rep("Down",252)
+glm.pred[glm.probs >.5]=" Up"
+table(glm.pred ,Direction.2005)
+(77+44)/252
+mean(glm.pred==Direction.2005)
+mean(glm.pred!=Direction.2005)
+
+
+glm.fits=glm(Direction∼Lag1+Lag2, data=Smarket, family=binomial, subset=train)
+glm.probs=predict(glm.fits,Smarket.2005, type="response")
+glm.pred=rep("Down",252)
+glm.pred[glm.probs >.5]=" Up"
+table(glm.pred ,Direction.2005)
+(35+106)/252
+mean(glm.pred==Direction.2005)
+106/(106+76)
+
+predict(glm.fits,newdata=data.frame(Lag1=c(1.2 ,1.5), Lag2=c(1.1,-0.8)),type="response")
+```
+
+# Exercises
+
+6. Suppose we collect data for a group of students in a statistics class with variables X1 = hours studied, X2 = undergrad GPA, and Y = receive an A. We fit a logistic regression and produce estimated coefficient, βˆ0 = −6, βˆ1 = 0.05, βˆ2 = 1.
+
+  (a) Estimate the probability that a student who studies for 40 h and has an undergrad GPA of 3.5 gets an A in the class.
+  
+```{r}
+e <- exp(1)
+(e^(-6 + .05*40 + 1*3.5))/(1+e^(-6 + .05*40 + 1*3.5))
+```
+
+  (b) How many hours would the student in part (a) need to study to have a 50 % chance of getting an A in the class?
+  
+```{r}
+# .5 = e^(-6 + .05*x + 1*3.5))/(1+e^(-6 + .05*x + 1*3.5))
+# .5 = e^(.05x - 2.5))/(1+e^(.05x - 2.5))
+# e^(.05x - 2.5) = 1
+# 50 hours
+```
+
+10. This question should be answered using the Weekly data set, which is part of the ISLR package. This data is similar in nature to the Smarket data from this chapter’s lab, except that it contains 1,089 weekly returns for 21 years, from the beginning of 1990 to the end of 2010.
+
+  (a) Produce some numerical and graphical summaries of the Weekly data. Do there appear to be any patterns?
+```{r}
+library(ISLR)
+detach(Smarket)
+attach(Weekly)
+summary(Weekly)
+cor(Weekly[, -9])
+plot(Weekly)
+```
+  Volume and year look related
+
+  (b) Use the full data set to perform a logistic regression with Direction as the response and the five lag variables plus Volume as predictors. Use the summary function to print the results. Do any of the predictors appear to be statistically significant? If so,which ones?
+```{r}
+glm.fits=glm(Direction∼Lag1+Lag2+Lag3+Lag4+Lag5+Volume, data=Weekly ,family=binomial)
+summary(glm.fits)
+```
+  Lag2 appears to be statistically significant
+
+  (c) Compute the confusion matrix and overall fraction of correct predictions. Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression.
+```{r}
+dim(Weekly)
+glm.probs=predict(glm.fits,type="response")
+glm.pred=rep("Down" ,1089)
+glm.pred[glm.probs >.5]=" Up"
+table(glm.pred ,Direction)
+#Training error rate
+(557+54)/1089
+# Error rate when predicting up
+557/(557+430)
+54/(54+48)
+```
+  The model is poor at making predictions when the using the training set. Training error of about 43% which is high.
+  
+  (d) Now fit the logistic regression model using a training data period from 1990 to 2008, with Lag2 as the only predictor. Compute the confusion matrix and the overall fraction of correct predictions for the held out data (that is, the data from 2009 and 2010).
+
+```{r}
+train=(Year < 2009)
+Weekly2= Weekly[!train,]
+dim(Weekly2)
+Direction2=Direction[!train]
+
+glm.fits=glm(Direction ∼ Lag2, data=Weekly ,family=binomial ,subset=train)
+
+glm.probs=predict(glm.fits,Weekly2, type="response")
+glm.pred=rep("Down",length(glm.probs))
+glm.pred[glm.probs >.5]=" Up"
+table(glm.pred ,Direction2)
+(56+9)/104
+56/(34+56)
+```
+  The model has a test error rate of 37.5%
+
+
+11. In this problem, you will develop a model to predict whether a given car gets high or low gas mileage based on the Auto data set.
+  (a) Create a binary variable, mpg01, that contains a 1 if mpg contains a value above its median, and a 0 if mpg contains a value below its median. You can compute the median using the median() function. Note you may find it helpful to use the data.frame() function to create a single data set containing both mpg01 and the other Auto variables.
+  
+```{r}
+attach(Auto)
+mpg01 <- rep(0, length(mpg))
+mpg01[mpg > median(mpg)] <- 1
+Auto2 <- data.frame(Auto, mpg01)
+```
+
+  (b) Explore the data graphically in order to investigate the association between mpg01 and the other features. Which of the other features seem most likely to be useful in predicting mpg01? Scatterplots and boxplots may be useful tools to answer this question. Describe your findings.
+
+```{r}
+cor(Auto2[, -9])
+plot(Auto2)
+plot(Auto2$mpg01, Auto2$acceleration)
+plot(Auto2$mpg01, Auto2$horsepower)
+plot(Auto2$mpg01, Auto2$weight)
+
+boxplot(year ~ mpg01, data = Auto, main = "Year vs mpg01")
+boxplot(displacement ~ mpg01, data = Auto, main = "Displacement vs mpg01")
+boxplot(cylinders ~ mpg01, data = Auto, main = "Cylinders vs mpg01")
+boxplot(acceleration ~ mpg01, data = Auto, main = "Acceleration vs mpg01")
+```
+  Based on the plots, it appears there is a relationship between mpp01 and weight, displacement, horsepower, ang cylinders.
+  
+  (c) Split the data into a training set and a test set
+  
+```{r}
+summary(Auto2)
+train <- Auto2$year < 80
+eighties <- Auto2[!train,]
+noteighties <- Auto2[train,]
+```
+
+  (f) Perform logistic regression on the training data in order to predict mpg01 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
+  
+```{r}
+mpg2=mpg01[!train]
+glm.fits=glm(mpg01 ∼ horsepower + cylinders + weight + displacement, data=Auto2 ,family=binomial ,subset=train)
+summary(glm.fits)
+glm.probs=predict(glm.fits,eighties, type="response")
+glm.pred=rep(0,length(glm.probs))
+glm.pred[glm.probs >.5]= 1
+table(glm.pred , mpg2)
+(60+5)/85
+1 - .76
+```
+  There is a test error rate of ~ 24%
