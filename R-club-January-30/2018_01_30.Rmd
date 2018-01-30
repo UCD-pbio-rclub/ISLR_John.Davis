@@ -1,0 +1,491 @@
+---
+title: "2018_01_30"
+author: "John D."
+date: "January 30, 2018"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+```
+
+# 4.6 Lab: Logistic Regression, LDA, QDA, and KNN
+
+## 4.6.1 The Stock Market Data
+
+```{r}
+library(ISLR)
+names(Smarket)
+dim(Smarket)
+summary(Smarket)
+pairs(Smarket)
+cor(Smarket)
+cor(Smarket[,-9])
+attach(Smarket)
+plot(Volume)
+```
+
+## 4.6.2 Logistic Regression
+
+```{r}
+glm.fits <- glm(Direction∼Lag1+Lag2+Lag3+Lag4+Lag5+Volume ,data=Smarket ,family=binomial)
+summary(glm.fits)
+coef(glm.fits)
+summary(glm.fits)$coef
+contrasts(Direction)
+glm.probs <- predict(glm.fits, type="response")
+glm.probs[1:10]
+glm.pred <- rep("Down", 1250)
+glm.pred[glm.probs >.5] <- "Up"
+table(glm.pred, Direction)
+mean(glm.pred==Direction)
+train <- Year<2005
+Smarket.2005 <- Smarket[!train,]
+dim(Smarket.2005)
+Direction.2005 <- Direction[!train]
+glm.fits <- glm(Direction ∼ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data=Smarket, family=binomial, subset=train)
+glm.probs <- predict(glm.fits, Smarket.2005, type="response")
+glm.pred <- rep("Down",252)
+glm.pred[glm.probs >.5]="Up"
+table(glm.pred, Direction.2005)
+mean(glm.pred==Direction.2005)
+mean(glm.pred!=Direction.2005)
+
+glm.fits <- glm(Direction ∼ Lag1 + Lag2, data=Smarket, family=binomial, subset=train)
+glm.probs <- predict(glm.fits,Smarket.2005, type="response")
+glm.pred <- rep("Down",252)
+glm.pred[glm.probs >.5]="Up"
+table(glm.pred ,Direction.2005)
+mean(glm.pred==Direction.2005)
+106/(106+76)
+predict(glm.fits,newdata=data.frame(Lag1=c(1.2 ,1.5),Lag2=c(1.1,-0.8)), type="response")
+```
+
+## 4.6.3 Linear Discriminant Analysis
+
+```{r}
+library(MASS)
+lda.fit <- lda(Direction ~ Lag1 + Lag2, data = Smarket, subset = train)
+lda.fit
+lda.pred <- predict(lda.fit, Smarket.2005)
+names(lda.pred)
+lda.class <- lda.pred$class
+table(lda.class, Direction.2005)
+mean(lda.class==Direction.2005)
+sum(lda.pred$posterior[,1]>=.5)
+sum(lda.pred$posterior[,1]<.5)
+lda.pred$posterior[1:20,1]
+lda.class[1:20]
+contrasts(lda.pred$class)
+sum(lda.pred$posterior[,1]>.9)
+```
+
+## 4.6.4 Quadratic Discriminant Analysis
+
+```{r}
+qda.fit <- qda(Direction ∼ Lag1 + Lag2, data=Smarket, subset=train)
+qda.fit
+
+qda.class <- predict(qda.fit, Smarket.2005)$class
+table(qda.class, Direction.2005)
+mean(qda.class==Direction.2005)
+```
+
+## 4.6.5 K-Nearest Neighbors
+
+```{r}
+library(class)
+train.X <- cbind(Lag1, Lag2)[train,]
+test.X <- cbind(Lag1, Lag2)[!train,]
+train.Direction <- Direction[train]
+
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Direction, k=1)
+table(knn.pred, Direction.2005)
+(83+43)/252
+
+knn.pred <- knn(train.X, test.X, train.Direction, k=2)
+table(knn.pred, Direction.2005)
+mean(knn.pred==Direction.2005)
+```
+
+## 4.6.6 An Application to Caravan Insurance Data
+
+```{r}
+dim(Caravan)
+attach(Caravan)
+summary(Purchase)
+348/5822
+
+standardized.X <- scale(Caravan[,-86])
+var(Caravan[,1])
+var(Caravan[,2])
+var(standardized.X[,1])
+var(standardized.X[,2])
+
+test <- 1:1000
+train.X <- standardized.X[-test,]
+test.X <- standardized.X[test,]
+train.Y <- Purchase[-test]
+test.Y <- Purchase[test]
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Y, k=1)
+mean(test.Y != knn.pred)
+mean(test.Y != "No")
+table(knn.pred, test.Y)
+9/(68+9)
+
+knn.pred <- knn(train.X, test.X, train.Y, k=3)
+table(knn.pred, test.Y)
+5/26
+
+knn.pred <- knn(train.X, test.X, train.Y, k=5)
+table(knn.pred, test.Y)
+4/15
+
+glm.fits <- glm(Purchase ~ ., data = Caravan, family = binomial, subset = -test)
+glm.probs <- predict(glm.fits,Caravan[test,], type="response")
+glm.pred <- rep("No", 1000)
+glm.pred[glm.probs > .5] <- "Yes"
+table(glm.pred, test.Y)
+glm.pred <- rep("No",1000)
+glm.pred[glm.probs > .25] <- "Yes"
+table(glm.pred, test.Y)
+11/(22+11)
+```
+
+# 4.7 Exercises
+
+### 5. We now examine the differences between LDA and QDA
+  (a) If the Bayes decision boundary is linear, do we expect LDA or QDA to perform better on the training set? On the test set?
+  
+  We expect LDA to do better on the test and QDA may do better on the train
+  
+  (b) If the Bayes decision boundary is non-linear, do we expect LDA or QDA to perform better on the training set? On the test set?
+  
+  We expect QDA to do better on both
+
+  (c) In general, as the sample size n increases, do we expect the test prediction accuracy of QDA relative to LDA to improve, decline, or be unchanged? Why?
+  
+  QDA is expected to go increase in accuracy as sample size increases and variance of the classifiers becomes not a concern.
+  
+  (d) True or False: Even if the Bayes decision boundary for a given problem is linear, we will probably achieve a superior test error rate using QDA rather than LDA because QDA is flexible enough to model a linear decision boundary. Justify your answer.
+  
+  False. QDA is too flexible. LDA will do better since the decision boundary is linear.
+
+### 6. Suppose we collect data for a group of students in a statistics class with variables X1 = hours studied, X2 = undergrad GPA, and Y = receive an A. We fit a logistic regression and produce estimated coefficient, βˆ0 = −6, βˆ1 = 0.05, βˆ2 = 1.
+  (a) Estimate the probability that a student who studies for 40 h and
+has an undergrad GPA of 3.5 gets an A in the class.
+
+```{r}
+e <- exp(1)
+(e^(-6 + .05*40 + 1*3.5))/(1+e^(-6 + .05*40 + 1*3.5))
+```
+
+(b) How many hours would the student in part (a) need to study to have a 50 % chance of getting an A in the class?
+  
+```{r}
+# .5 = e^(-6 + .05*x + 1*3.5))/(1+e^(-6 + .05*x + 1*3.5))
+# .5 = e^(.05x - 2.5))/(1+e^(.05x - 2.5))
+# e^(.05x - 2.5) = 1
+# 50 hours
+```
+
+### 8. Suppose that we take a data set, divide it into equally-sized training and test sets, and then try out two different classification procedures. First we use logistic regression and get an error rate of 20 % on the training data and 30 % on the test data. Next we use 1-nearest neighbors (i.e. K = 1) and get an average error rate (averaged over both test and training data sets) of 18 %. Based on these results, which method should we prefer to use for classification of new observations? Why?
+
+  Want logistic regression. When using K=1, the training set should have an error of 0%. Since the average error for KNN is 18%, this means that the test error for KNN is 36%. 36% is worse than 30%, therefore we want logisti regression.
+  
+### 9. This problem has to do with odds.
+
+  (a) On average, what fraction of people with an odds of 0.37 of defaulting on their credit card payment will in fact default?
+  
+```{r}
+#.37 = (x/1-x)
+#.37-.37x = x
+#.37 = .63x
+#.37/.63 = x
+# 37/63 people
+```
+
+  (b) Suppose that an individual has a 16 % chance of defaulting on her credit card payment. What are the odds that she will default?
+  
+```{r}
+.16/(1-.16)
+```
+
+### 10. This question should be answered using the Weekly data set, which is part of the ISLR package. This data is similar in nature to the Smarket data from this chapter’s lab, except that it contains 1,089 weekly returns for 21 years, from the beginning of 1990 to the end of 2010.
+
+  (a) Produce some numerical and graphical summaries of the Weekly data. Do there appear to be any patterns?
+
+```{r}
+detach(Smarket)
+attach(Weekly)
+summary(Weekly)
+cor(Weekly[, -9])
+plot(Weekly)
+```
+  Volume and year look related
+  
+  (b) Use the full data set to perform a logistic regression with Direction as the response and the five lag variables plus Volume as predictors. Use the summary function to print the results. Do any of the predictors appear to be statistically significant? If so,which ones?
+```{r}
+glm.fits=glm(Direction∼Lag1+Lag2+Lag3+Lag4+Lag5+Volume, data=Weekly ,family=binomial)
+summary(glm.fits)
+```
+  Lag2 appears to be statistically significant
+
+  (c) Compute the confusion matrix and overall fraction of correct predictions. Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression.
+```{r}
+dim(Weekly)
+glm.probs=predict(glm.fits,type="response")
+glm.pred=rep("Down" ,1089)
+glm.pred[glm.probs >.5]=" Up"
+table(glm.pred ,Direction)
+#Training error rate
+(557+54)/1089
+# Error rate when predicting up
+557/(557+430)
+54/(54+48)
+```
+  The model is poor at making predictions when the using the training set. Training error of about 43% which is high.
+  
+  (d) Now fit the logistic regression model using a training data period from 1990 to 2008, with Lag2 as the only predictor. Compute the confusion matrix and the overall fraction of correct predictions for the held out data (that is, the data from 2009 and 2010).
+
+```{r}
+train <- (Year < 2009)
+Weekly2 <- Weekly[!train,]
+dim(Weekly2)
+Direction2=Direction[!train]
+
+glm.fits=glm(Direction ∼ Lag2, data=Weekly ,family=binomial ,subset=train)
+
+glm.probs=predict(glm.fits,Weekly2, type="response")
+glm.pred=rep("Down",length(glm.probs))
+glm.pred[glm.probs >.5]=" Up"
+table(glm.pred ,Direction2)
+mean(glm.pred != Direction2)
+(56+9)/104
+56/(34+56)
+```
+  The model has a test error rate of 37.5%
+
+  (e) Repeat (d) using LDA.
+  
+```{r}
+lda.fit <- lda(Direction ~ Lag2, data = Weekly, subset = train)
+plot(lda.fit)
+lda.pred <- predict(lda.fit , Weekly2)
+names(lda.pred)
+lda.class <- lda.pred$class
+table(lda.class, Direction2)
+mean(lda.class!=Direction2)
+```
+
+  (f) Repeat (d) using QDA.
+  
+```{r}
+qda.fit <- qda(Direction ~ Lag2, data = Weekly, subset = train)
+qda.pred <- predict(qda.fit , Weekly2)
+names(qda.pred)
+qda.class <- qda.pred$class
+table(qda.class, Direction2)
+mean(qda.class!=Direction2)
+```
+
+  (g) Repeat (d) using KNN with K = 1
+  
+```{r}
+train.X <- matrix(Weekly[train,]$Lag2)
+test.X <- matrix(Weekly[!train,]$Lag2)
+train.Direction <- Direction[train]
+
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Direction, k=1)
+table(knn.pred, Direction2)
+mean(knn.pred != Direction2)
+```
+
+  (h) Which of these methods appears to provide the best results on this data?
+
+  Logistic regression and LDA perform the best with the lowest test error. Next is QDA followed by knn.
+  
+  (i) Experiment with different combinations of predictors, including possible transformations and interactions, for each of the methods. Report the variables, method, and associated confusion matrix that appears to provide the best results on the held out data. Note that you should also experiment with values for K in the KNN classifier.
+  
+```{r}
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Direction, k=3)
+table(knn.pred, Direction2)
+mean(knn.pred != Direction2)
+
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Direction, k=5)
+table(knn.pred, Direction2)
+mean(knn.pred != Direction2)
+``` 
+
+  KNN does not appear to improve too much.
+  
+### 11. In this problem, you will develop a model to predict whether a given car gets high or low gas mileage based on the Auto data set.
+
+  (a) Create a binary variable, mpg01, that contains a 1 if mpg contains a value above its median, and a 0 if mpg contains a value below its median. You can compute the median using the median() function. Note you may find it helpful to use the data.frame() function to create a single data set containing both mpg01 and the other Auto variables.
+  
+```{r}
+attach(Auto)
+mpg01 <- rep(0, length(mpg))
+mpg01[mpg > median(mpg)] <- 1
+Auto2 <- data.frame(Auto, mpg01)
+```
+
+  (b) Explore the data graphically in order to investigate the association between mpg01 and the other features. Which of the other features seem most likely to be useful in predicting mpg01? Scatterplots and boxplots may be useful tools to answer this question. Describe your findings.
+
+```{r}
+cor(Auto2[, -9])
+plot(Auto2)
+plot(Auto2$mpg01, Auto2$acceleration)
+plot(Auto2$mpg01, Auto2$horsepower)
+plot(Auto2$mpg01, Auto2$weight)
+
+boxplot(year ~ mpg01, data = Auto, main = "Year vs mpg01")
+boxplot(displacement ~ mpg01, data = Auto, main = "Displacement vs mpg01")
+boxplot(cylinders ~ mpg01, data = Auto, main = "Cylinders vs mpg01")
+boxplot(acceleration ~ mpg01, data = Auto, main = "Acceleration vs mpg01")
+```
+  Based on the plots, it appears there is a relationship between mpp01 and weight, displacement, horsepower, ang cylinders.
+  
+  (c) Split the data into a training set and a test set
+  
+```{r}
+summary(Auto2)
+spliter <- rep(c(T,F),196)
+train <- Auto2[spliter,]
+test <- Auto2[!spliter,]
+```
+
+  (d) Perform LDA on the training data in order to predict mpg01 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
+  
+```{r}
+lda.fit <- lda(mpg01 ~ weight + displacement + horsepower + cylinders, data = train)
+plot(lda.fit)
+lda.pred <- predict(lda.fit , test)
+names(lda.pred)
+lda.class <- lda.pred$class
+table(lda.class, test$mpg01)
+mean(lda.class != test$mpg01)
+```
+
+  (e) Perform QDA on the training data in order to predict mpg01 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
+  
+```{r}
+qda.fit <- qda(mpg01 ~ weight + displacement + horsepower + cylinders, data = train)
+qda.pred <- predict(qda.fit , test)
+names(qda.pred)
+qda.class <- qda.pred$class
+table(qda.class, test$mpg01)
+mean(qda.class != test$mpg01)
+```
+
+  (f) Perform logistic regression on the training data in order to predict mpg01 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
+  
+```{r}
+glm.fits=glm(mpg01 ∼ horsepower + cylinders + weight + displacement, data=train, family=binomial)
+summary(glm.fits)
+glm.probs=predict(glm.fits,test, type="response")
+glm.pred=rep(0,length(glm.probs))
+glm.pred[glm.probs >.5]= 1
+table(glm.pred, test$mpg01)
+(81+91)/196
+1 - .88
+```
+  There is a test error rate of ~ 12%
+  
+  (g) Perform KNN on the training data, with several values of K, in order to predict mpg01. Use only the variables that seemed most associated with mpg01 in (b). What test errors do you obtain? Which value of K seems to perform the best on this data set?
+  
+```{r}
+train.X <- subset(train, select = c("horsepower", "cylinders", "weight", "displacement"))
+test.X <- subset(test, select = c("horsepower", "cylinders", "weight", "displacement"))
+train.mpg01 <- train$mpg01
+test.mpg01 <- test$mpg01
+
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.mpg01, k=1)
+table(knn.pred, test.mpg01)
+mean(knn.pred != test.mpg01)
+
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.mpg01, k=3)
+table(knn.pred, test.mpg01)
+mean(knn.pred != test.mpg01)
+
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.mpg01, k=5)
+table(knn.pred, test.mpg01)
+mean(knn.pred != test.mpg01)
+
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.mpg01, k=10)
+table(knn.pred, test.mpg01)
+mean(knn.pred != test.mpg01)
+```
+
+K of 3 performs well
+
+### 13. Using the Boston data set, fit classification models in order to predict whether a given suburb has a crime rate above or below the median. Explore logistic regression, LDA, and KNN models using various subsets of the predictors. Describe your findings.
+
+```{r}
+detach(Weekly)
+attach(Boston)
+med.crim <- median(crim)
+names(Boston)
+Boston$crim[crim > med.crim] <- "Up"
+Boston$crim[crim <= med.crim] <- "Down"
+Boston$crim <- as.factor(Boston$crim)
+
+splitter <- rep(c(T,F), length(Boston$crim)/2)
+train <- Boston[splitter,]
+test <- Boston[!splitter,]
+
+### Logistic
+glm.fits <- glm(crim ~ ., data=train, family=binomial)
+glm.probs=predict(glm.fits,test, type="response")
+glm.pred=rep("Down",length(glm.probs))
+glm.pred[glm.probs > med.crim]="Up"
+table(glm.pred , test$crim)
+mean(glm.pred != test$crim)
+
+### LDA
+lda.fit <- lda(crim ~ ., data = train)
+plot(lda.fit)
+lda.pred <- predict(lda.fit , test)
+names(lda.pred)
+lda.class <- lda.pred$class
+table(lda.class, test$crim)
+mean(lda.class != test$crim)
+
+### KNN
+train.X <- train
+test.X <- test
+train.crim <- train$crim
+test.crim <- test$crim
+
+set.seed(1)
+knn.pred <- knn(train[,-1], test[,-1], train$crim, k=1)
+table(knn.pred, test.crim)
+mean(knn.pred != test.crim)
+
+set.seed(1)
+knn.pred <- knn(train[,-1], test[,-1], train$crim, k=3)
+table(knn.pred, test.crim)
+mean(knn.pred != test.crim)
+
+set.seed(1)
+knn.pred <- knn(train[,-1], test[,-1], train$crim, k=5)
+table(knn.pred, test.crim)
+mean(knn.pred != test.crim)
+
+set.seed(1)
+knn.pred <- knn(train[,-1], test[,-1], train$crim, k=10)
+table(knn.pred, test.crim)
+mean(knn.pred != test.crim)
+```
+
