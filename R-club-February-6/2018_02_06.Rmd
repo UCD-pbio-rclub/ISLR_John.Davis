@@ -241,7 +241,7 @@ cv.error <- rep(0, nrow(Weekly))
 for(i in 1:nrow(Weekly)){
   glm.fit <- glm(Direction ~ Lag1 + Lag2, Weekly[-i,], family = binomial)
   glm.prob <- predict(glm.fit, Weekly, type="response")[i]
-  glm.prob[glm.prob > .5] <- "Up"
+  glm.prob <- ifelse(glm.prob > .5, "Up", "Down")
   if(glm.prob != Weekly$Direction[i]){
     cv.error[i] <- 1
   }

@@ -463,7 +463,7 @@ cv.error &lt;- rep(0, nrow(Weekly))
 for(i in 1:nrow(Weekly)){
   glm.fit &lt;- glm(Direction ~ Lag1 + Lag2, Weekly[-i,], family = binomial)
   glm.prob &lt;- predict(glm.fit, Weekly, type=&quot;response&quot;)[i]
-  glm.prob[glm.prob &gt; .5] &lt;- &quot;Up&quot;
+  glm.prob &lt;- ifelse(glm.prob &gt; .5, &quot;Up&quot;, &quot;Down&quot;)
   if(glm.prob != Weekly$Direction[i]){
     cv.error[i] &lt;- 1
   }
@@ -472,7 +472,7 @@ for(i in 1:nrow(Weekly)){
 <li>Take the average of the n numbers obtained in (d)iv in order to obtain the LOOCV estimate for the test error. Comment on the results.</li>
 </ol>
 <pre class="r"><code>mean(cv.error)</code></pre>
-<pre><code>## [1] 0.4811754</code></pre>
+<pre><code>## [1] 0.4499541</code></pre>
 <ol start="8" style="list-style-type: decimal">
 <li>We will now perform cross-validation on a simulated data set.</li>
 </ol>
