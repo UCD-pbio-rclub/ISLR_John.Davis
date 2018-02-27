@@ -487,8 +487,6 @@ bestlam</code></pre>
 <pre class="r"><code>ridge.pred &lt;- predict(ridge.mod, s=bestlam, newx=X.test)
 mean((ridge.pred-Y.test)^2)</code></pre>
 <pre><code>## [1] 2585067</code></pre>
-<pre class="r"><code>mean((mean(Y)-Y.test)^2)</code></pre>
-<pre><code>## [1] 16035832</code></pre>
 </div>
 </div>
 
