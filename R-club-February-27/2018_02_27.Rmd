@@ -194,6 +194,6 @@ bestlam <- cv.out$lambda.min
 bestlam
 
 ridge.pred <- predict(ridge.mod, s=bestlam, newx=X.test)
-mean((ridge.pred-Y.test)^2)
+mean((Y.test-ridge.pred)^2)
 ```
 
