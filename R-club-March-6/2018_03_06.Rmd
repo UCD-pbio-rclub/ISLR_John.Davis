@@ -1,0 +1,372 @@
+---
+title: "2018_03_06"
+author: "John D."
+date: "March 2, 2018"
+output:
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 6.5.3 Choosing Among Models Using the Validation Set Approach and Cross-Validation
+
+```{r}
+library(ISLR)
+library(leaps)
+set.seed(1)
+train <- sample(c(TRUE ,FALSE), nrow(Hitters),rep=TRUE)
+test <- (!train)
+regfit.best <- regsubsets(Salary ~ ., data=Hitters[train ,], nvmax=19)
+test.mat <- model.matrix(Salary ~ ., data=Hitters [test ,])
+val.errors <- rep(NA ,19)
+for(i in 1:19){
+  coefi <- coef(regfit.best, id=i)
+  pred <- test.mat[,names(coefi)]%*%coefi
+  val.errors[i] <- mean((na.omit(Hitters$Salary[test])-pred)^2)
+}
+val.errors
+which.min(val.errors)
+coef(regfit.best ,10)
+
+predict.regsubsets <- function(object, newdata, id, ...){
+  form <- as.formula(object$call[[2]])
+  mat <- model.matrix(form, newdata)
+  coefi <- coef(object, id=id)
+  xvars <- names(coefi)
+  mat[,xvars]%*%coefi
+}
+
+regfit.best <- regsubsets(Salary ~ .,data=Hitters ,nvmax=19)
+coef(regfit.best, 10)
+
+
+k=10
+set.seed(1)
+folds <- sample(1:k, nrow(Hitters), replace=TRUE)
+cv.errors <- matrix(NA,k,19, dimnames=list(NULL, paste(1:19)))
+
+for(j in 1:k){
+   best.fit <- regsubsets(Salary ~ ., data=Hitters[folds!=j,], nvmax=19)
+    for(i in 1:19){
+       pred <- predict(best.fit, Hitters[folds==j,], id=i)
+      cv.errors[j,i] <- mean((na.omit(Hitters$Salary[folds==j])-pred)^2)
+    }
+}
+
+mean.cv.errors <- apply(cv.errors, 2, mean)
+mean.cv.errors
+par(mfrow=c(1,1))
+plot(mean.cv.errors, type='b')
+
+reg.best <- regsubsets(Salary ~ ., data=Hitters, nvmax=19)
+coef(reg.best, 10)
+```
+
+# 6.6 Lab 2: Ridge Regression and the Lasso
+## 6.6.1 Ridge Regression
+
+```{r}
+library(glmnet)
+x <- model.matrix(Salary ~ ., Hitters)[,-1]
+y <- na.omit(Hitters$Salary)
+grid <- 10^seq(10, -2, length =100)
+ridge.mod <- glmnet(x, y, alpha=0, lambda=grid)
+dim(coef(ridge.mod))
+ridge.mod$lambda[50]
+coef(ridge.mod)[,50]
+sqrt(sum(coef(ridge.mod)[-1,50]^2))
+
+ridge.mod$lambda[60]
+coef(ridge.mod)[,60]
+sqrt(sum(coef(ridge.mod)[-1,60]^2))
+predict(ridge.mod, s=50, type="coefficients")[1:20,]
+
+set.seed(1)
+train <- sample(1:nrow(x),nrow(x)/2)
+test <- (-train)
+y.test <- y[test]
+
+ridge.mod <- glmnet(x[train,], y[train], alpha=0, lambda=grid, thresh=1e-12)
+ridge.pred <- predict(ridge.mod, s=4, newx=x[test,])
+mean((ridge.pred-y.test)^2)
+mean((mean(y[train])-y.test)^2)
+
+ridge.pred <- predict(ridge.mod, s=1e10, newx=x[test,])
+mean((ridge.pred-y.test)^2)
+
+ridge.pred <- predict(ridge.mod, s=0, newx=x[test,], exact = T, x=x[train,], y=y[train])
+mean((ridge.pred-y.test)^2)
+
+lm(y ~ x, subset=train)
+predict(ridge.mod, s=0, exact=T, type="coefficients", x=x[train,], y=y[train])[1:20,]
+
+set.seed(1)
+cv.out <- cv.glmnet(x[train,], y[train], alpha=0)
+plot(cv.out)
+bestlam <- cv.out$lambda.min
+bestlam
+
+ridge.pred <- predict(ridge.mod, s=bestlam, newx=x[test,])
+mean((ridge.pred - y.test)^2)
+
+out <- glmnet(x, y, alpha=0)
+predict(out, type="coefficients", s=bestlam)[1:20,]
+```
+
+## 6.6.2 The Lasso
+
+```{r}
+lasso.mod <- glmnet(x[train,], y[train], alpha=1, lambda=grid)
+plot(lasso.mod)
+
+set.seed(1)
+cv.out <- cv.glmnet(x[train,], y[train], alpha=1)
+plot(cv.out)
+bestlam <- cv.out$lambda.min
+lasso.pred <- predict(lasso.mod, s=bestlam, newx=x[test,])
+mean((lasso.pred - y.test)^2)
+
+out <- glmnet(x, y, alpha=1, lambda=grid)
+lasso.coef <- predict(out, type="coefficients", s= bestlam)[1:20,]
+lasso.coef
+```
+
+# 6.8 Exercises
+
+## 2. For parts (a) through (c), indicate which of i. through iv. is correct. Justify your answer.
+
+  (a) The lasso, relative to least squares, is:  
+    iii. Less flexible and hence will give improved prediction accuracy when its increase in bias is less than its decrease in variance.
+  (b) Repeat (a) for ridge regression relative to least squares  
+    iii. Less flexible and hence will give improved prediction accuracy when its increase in bias is less than its decrease in variance.
+  (c) Repeat (a) for non-linear methods relative to least squares.  
+    More flexible and hence will give improved prediction accuracy when its increase in variance is less than its decrease in bias.
+    
+## 5. It is well-known that ridge regression tends to give similar coefficient values to correlated variables, whereas the lasso may give quite different coefficient values to correlated variables. We will now explore this property in a very simple setting.
+
+  (c) Write out the lasso optimization problem in this setting.  
+  (d) Argue that in this setting, the lasso coefficients βˆ1 and βˆ2 are not unique—in other words, there are many possible solutions to the optimization problem in (c). Describe these solutions.
+  
+## 8. In this exercise, we will generate simulated data, and will then use this data to perform best subset selection.
+
+  (a) Use the `rnorm()` function to generate a predictor X of length n = 100, as well as a noise vector e of length n = 100.  
+```{r}
+set.seed(1)
+x <- rnorm(100)
+e <- rnorm(100)
+```
+  (b) Generate a response vector Y of length n = 100 according to
+the model *Y = β0 + β1X + β2X^2 + β3X^3 + e*, where β0, β1, β2, and β3 are constants of your choice.
+```{r}
+b0 <- 1
+b1 <- 3
+b2 <- 5
+b3 <- 7
+y <- b0 + b1*x + b2*x^2 + b3*x^3 + e
+```
+  (c) Use the `regsubsets()` function to perform best subset selection in order to choose the best model containing the predictors X, X2,...,X10. What is the best model obtained according to Cp, BIC, and adjusted R2? Show some plots to provide evidence for your answer, and report the coefficients of the best model obtained. Note you will need to use the `data.frame()` function to create a single data set containing both X and Y.
+```{r}
+df <- data.frame(x = x, y = y)
+regsubsets.10 <- regsubsets(y ~ x + I(x^2) + I(x^3) + 
+                              I(x^4) + I(x^5) + I(x^6) + 
+                              I(x^7) + I(x^8) + I(x^9) + I(x^10), data = df, nvmax = 10)
+reg.summary <- summary(regsubsets.10)
+par(mfrow = c(2, 2))
+plot(reg.summary$cp, xlab = "Number of variables", ylab = "Cp", type = "l")
+points(which.min(reg.summary$cp), reg.summary$cp[which.min(reg.summary$cp)], col = "red", cex = 2, pch = 20)
+plot(reg.summary$bic, xlab = "Number of variables", ylab = "BIC", type = "l")
+points(which.min(reg.summary$bic), reg.summary$bic[which.min(reg.summary$bic)], col = "red", cex = 2, pch = 20)
+plot(reg.summary$adjr2, xlab = "Number of variables", ylab = "Adjusted R^2", type = "l")
+points(which.max(reg.summary$adjr2), reg.summary$adjr2[which.max(reg.summary$adjr2)], col = "red", cex = 2, pch = 20)
+
+coef(regsubsets.10, which.min(reg.summary$cp))
+coef(regsubsets.10, which.min(reg.summary$bic))
+coef(regsubsets.10, which.max(reg.summary$adjr2))
+```
+  (d) Repeat (c), using forward stepwise selection and also using backwards stepwise selection. How does your answer compare to the results in (c)?
+```{r}
+# Forward
+regsubsets.10.fwd <- regsubsets(y ~ x + I(x^2) + I(x^3) + 
+                              I(x^4) + I(x^5) + I(x^6) + 
+                              I(x^7) + I(x^8) + I(x^9) + I(x^10), data = df, nvmax = 10, method = "forward")
+reg.summary.fwd <- summary(regsubsets.10.fwd)
+par(mfrow = c(2, 2))
+plot(reg.summary.fwd$cp, xlab = "Number of variables", ylab = "Cp", type = "l")
+points(which.min(reg.summary.fwd$cp), reg.summary.fwd$cp[which.min(reg.summary.fwd$cp)], col = "red", cex = 2, pch = 20)
+plot(reg.summary.fwd$bic, xlab = "Number of variables", ylab = "BIC", type = "l")
+points(which.min(reg.summary.fwd$bic), reg.summary.fwd$bic[which.min(reg.summary.fwd$bic)], col = "red", cex = 2, pch = 20)
+plot(reg.summary.fwd$adjr2, xlab = "Number of variables", ylab = "Adjusted R^2", type = "l")
+points(which.max(reg.summary.fwd$adjr2), reg.summary.fwd$adjr2[which.max(reg.summary.fwd$adjr2)], col = "red", cex = 2, pch = 20)
+
+coef(regsubsets.10.fwd, which.min(reg.summary.fwd$cp))
+coef(regsubsets.10.fwd, which.min(reg.summary.fwd$bic))
+coef(regsubsets.10.fwd, which.max(reg.summary.fwd$adjr2))
+
+# Backwards
+regsubsets.10.bwd <- regsubsets(y ~ x + I(x^2) + I(x^3) + 
+                              I(x^4) + I(x^5) + I(x^6) + 
+                              I(x^7) + I(x^8) + I(x^9) + I(x^10), data = df, nvmax = 10, method = "backward")
+reg.summary.bwd <- summary(regsubsets.10.bwd)
+par(mfrow = c(2, 2))
+plot(reg.summary.bwd$cp, xlab = "Number of variables", ylab = "Cp", type = "l")
+points(which.min(reg.summary.bwd$cp), reg.summary.bwd$cp[which.min(reg.summary.bwd$cp)], col = "red", cex = 2, pch = 20)
+plot(reg.summary.bwd$bic, xlab = "Number of variables", ylab = "BIC", type = "l")
+points(which.min(reg.summary.bwd$bic), reg.summary.bwd$bic[which.min(reg.summary.bwd$bic)], col = "red", cex = 2, pch = 20)
+plot(reg.summary.bwd$adjr2, xlab = "Number of variables", ylab = "Adjusted R^2", type = "l")
+points(which.max(reg.summary.bwd$adjr2), reg.summary.bwd$adjr2[which.max(reg.summary.bwd$adjr2)], col = "red", cex = 2, pch = 20)
+
+coef(regsubsets.10.bwd, which.min(reg.summary.bwd$cp))
+coef(regsubsets.10.bwd, which.min(reg.summary.bwd$bic))
+coef(regsubsets.10.bwd, which.max(reg.summary.bwd$adjr2))
+```
+
+  (e) Now fit a lasso model to the simulated data, again using X, X2, ...,X10 as predictors. Use cross-validation to select the optimal value of λ. Create plots of the cross-validation error as a function of λ. Report the resulting coefficient estimates, and discuss the results obtained.
+```{r}
+library(glmnet)
+summary(df)
+mat <- model.matrix(y ~ x + I(x^2) + I(x^3) + I(x^4) + I(x^5) + I(x^6) + I(x^7) + I(x^8) + I(x^9) + I(x^10), data = df)[,-1]
+cv.lasso <- cv.glmnet(mat, y, alpha = 1)
+plot(cv.lasso)
+coef(cv.lasso)
+bestlam <- cv.lasso$lambda.min
+bestlam
+```
+  (f) Now generate a response vector Y according to the model Y = β0 + β7X7 + and perform best subset selection and the lasso. Discuss the results obtained.
+  
+```{r}
+b7 <- 9
+y <- b0 + b7 * x^7 + e
+new.df <- data.frame(y = y, x = x)
+regsubsets.10 <- regsubsets(y ~ x + I(x^2) + I(x^3) + I(x^4) + I(x^5) + I(x^6) + I(x^7) + I(x^8) + I(x^9) + I(x^10), data = new.df, nvmax = 10)
+reg.summary <- summary(regsubsets.10)
+par(mfrow = c(2, 2))
+plot(reg.summary$cp, xlab = "Number of variables", ylab = "Cp", type = "l")
+points(which.min(reg.summary$cp), reg.summary$cp[which.min(reg.summary$cp)], col = "red", cex = 2, pch = 20)
+plot(reg.summary$bic, xlab = "Number of variables", ylab = "BIC", type = "l")
+points(which.min(reg.summary$bic), reg.summary$bic[which.min(reg.summary$bic)], col = "red", cex = 2, pch = 20)
+plot(reg.summary$adjr2, xlab = "Number of variables", ylab = "Adjusted R^2", type = "l")
+points(which.max(reg.summary$adjr2), reg.summary$adjr2[which.max(reg.summary$adjr2)], col = "red", cex = 2, pch = 20)
+
+coef(regsubsets.10, which.min(reg.summary$cp))
+coef(regsubsets.10, which.min(reg.summary$bic))
+coef(regsubsets.10, which.max(reg.summary$adjr2))
+
+mat <- model.matrix(y ~ x + I(x^2) + I(x^3) + I(x^4) + I(x^5) + I(x^6) + I(x^7) + I(x^8) + I(x^9) + I(x^10) , data = new.df)[,-1]
+cv.lasso <- cv.glmnet(mat, y, alpha = 1)
+bestlam <- cv.lasso$lambda.min
+bestlam
+fit.lasso <- glmnet(mat, y, alpha = 1)
+predict(fit.lasso, s = bestlam, type = "coefficients")[1:11, ]
+```
+
+## 9. In this exercise, we will predict the number of applications received using the other variables in the College data set.
+
+  (a) Split the data set into a training set and a test set.
+  
+```{r}
+set.seed(1)
+train <- sample(1:nrow(College), nrow(College)/2)
+test <- -train
+College.train <- College[train, ]
+College.test <- College[test, ]
+```
+
+  (b) Fit a linear model using least squares on the training set, and report the test error obtained.
+  
+```{r}
+lm.fit <- lm(Apps ~ ., data = College.train)
+lm.pred <- predict(lm.fit, College.test)
+mean((lm.pred - College.test$Apps)^2)
+```
+
+  (c) Fit a ridge regression model on the training set, with λ chosen by cross-validation. Report the test error obtained.
+  
+```{r}
+train.mat <- model.matrix(Apps ~ ., data = College.train)
+test.mat <- model.matrix(Apps ~ ., data = College.test)
+fit.rr <- cv.glmnet(train.mat, College.train$Apps, alpha = 0)
+plot(fit.rr)
+fit.rr$lambda.min
+fit.rr$lambda.1se
+pred.rr <- predict(fit.rr, newx = test.mat)
+mean((pred.rr - College.test$Apps)^2)
+```
+
+  (d) Fit a lasso model on the training set, with λ chosen by crossvalidation. Report the test error obtained, along with the number of non-zero coefficient estimates
+  
+```{r}
+fit.las <- cv.glmnet(train.mat, College.train$Apps)
+plot(fit.las)
+fit.las$lambda.min
+fit.las$lambda.1se
+pred.las <- predict(fit.las, newx = test.mat)
+mean((pred.las - College.test$Apps)^2)
+predict(fit.las, type = "coefficients")
+```
+
+## 11. We will now try to predict per capita crime rate in the Boston data set.
+
+  (a) Try out some of the regression methods explored in this chapter, such as best subset selection, the lasso, ridge regression, and PCR. Present and discuss results for the approaches that you consider.
+  
+```{r}
+library(MASS)
+set.seed(1)
+# Split Data
+train <- sample(1:nrow(Boston), nrow(Boston)/2)
+test <- -train
+Boston.train <- Boston[train, ]
+Boston.test <- Boston[test, ]
+
+# Linear model
+lm.fit <- lm(crim ~ ., data = Boston.train)
+lm.pred <- predict(lm.fit, Boston.test)
+mean((lm.pred - Boston.test$crim)^2)
+
+# Best subset selection
+regsubsets.10 <- regsubsets(crim ~ ., data = Boston.test, nvmax = 14)
+reg.summary <- summary(regsubsets.10)
+par(mfrow = c(2, 2))
+plot(reg.summary$cp, xlab = "Number of variables", ylab = "Cp", type = "l")
+points(which.min(reg.summary$cp), reg.summary$cp[which.min(reg.summary$cp)], col = "red", cex = 2, pch = 20)
+plot(reg.summary$bic, xlab = "Number of variables", ylab = "BIC", type = "l")
+points(which.min(reg.summary$bic), reg.summary$bic[which.min(reg.summary$bic)], col = "red", cex = 2, pch = 20)
+plot(reg.summary$adjr2, xlab = "Number of variables", ylab = "Adjusted R^2", type = "l")
+points(which.max(reg.summary$adjr2), reg.summary$adjr2[which.max(reg.summary$adjr2)], col = "red", cex = 2, pch = 20)
+
+coef(regsubsets.10, which.min(reg.summary$cp))
+coef(regsubsets.10, which.min(reg.summary$bic))
+coef(regsubsets.10, which.max(reg.summary$adjr2))
+
+sub.pred <- predict(regsubsets.10, Boston.test, id = 3)
+mean((sub.pred - Boston.test$crim)^2)
+
+
+# Ridge Regression
+train.mat <- model.matrix(crim ~ ., data = Boston.train)[, -1]
+test.mat <- model.matrix(crim ~ ., data = Boston.test)[, -1]
+fit.rr <- cv.glmnet(train.mat, Boston.train$crim, alpha = 0)
+plot(fit.rr)
+fit.rr$lambda.min
+fit.rr$lambda.1se
+pred.rr <- predict(fit.rr, newx = test.mat)
+mean((pred.rr - Boston.test$crim)^2)
+predict(fit.rr, type = "coefficients")
+
+# Lasso
+fit.las <- cv.glmnet(train.mat, Boston.train$crim)
+plot(fit.las)
+fit.las$lambda.min
+fit.las$lambda.1se
+pred.las <- predict(fit.las, newx = test.mat)
+mean((pred.las - Boston.test$crim)^2)
+predict(fit.las, type = "coefficients")
+```
+
+  (b) Propose a model (or set of models) that seem to perform well on this data set, and justify your answer. Make sure that you are evaluating model performance using validation set error, crossvalidation, or some other reasonable alternative, as opposed to using training error.  
+    The best subset selection had the lowest error according to validation set testing.  
+    
+  (c) Does your chosen model involve all of the features in the data set? Why or why not?  
+    No, some predictors are uninformative.
