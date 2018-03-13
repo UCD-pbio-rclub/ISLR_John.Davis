@@ -1,0 +1,340 @@
+---
+title: "2018_03_13"
+author: "John D."
+date: "March 13, 2018"
+output: 
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 6.5.3 Choosing Among Models Using the Validation Set Approach and Cross-Validation
+
+```{r}
+library(ISLR)
+library(leaps)
+set.seed(1)
+train <- sample(c(TRUE ,FALSE), nrow(Hitters),rep=TRUE)
+test <- (!train)
+regfit.best <- regsubsets(Salary ~ ., data=Hitters[train ,], nvmax=19)
+test.mat <- model.matrix(Salary ~ ., data=Hitters [test ,])
+val.errors <- rep(NA ,19)
+for(i in 1:19){
+  coefi <- coef(regfit.best, id=i)
+  pred <- test.mat[,names(coefi)]%*%coefi
+  val.errors[i] <- mean((na.omit(Hitters$Salary[test])-pred)^2)
+}
+val.errors
+which.min(val.errors)
+coef(regfit.best ,10)
+
+predict.regsubsets <- function(object, newdata, id, ...){
+  form <- as.formula(object$call[[2]])
+  mat <- model.matrix(form, newdata)
+  coefi <- coef(object, id=id)
+  xvars <- names(coefi)
+  mat[,xvars]%*%coefi
+}
+
+regfit.best <- regsubsets(Salary ~ .,data=Hitters ,nvmax=19)
+coef(regfit.best, 10)
+
+
+k=10
+set.seed(1)
+folds <- sample(1:k, nrow(Hitters), replace=TRUE)
+cv.errors <- matrix(NA,k,19, dimnames=list(NULL, paste(1:19)))
+
+for(j in 1:k){
+   best.fit <- regsubsets(Salary ~ ., data=Hitters[folds!=j,], nvmax=19)
+    for(i in 1:19){
+       pred <- predict(best.fit, Hitters[folds==j,], id=i)
+      cv.errors[j,i] <- mean((na.omit(Hitters$Salary[folds==j])-pred)^2)
+    }
+}
+
+mean.cv.errors <- apply(cv.errors, 2, mean)
+mean.cv.errors
+par(mfrow=c(1,1))
+plot(mean.cv.errors, type='b')
+
+reg.best <- regsubsets(Salary ~ ., data=Hitters, nvmax=19)
+coef(reg.best, 10)
+```
+
+# 6.6 Lab 2: Ridge Regression and the Lasso
+## 6.6.1 Ridge Regression
+
+```{r}
+library(glmnet)
+x <- model.matrix(Salary ~ ., Hitters)[,-1]
+y <- na.omit(Hitters$Salary)
+grid <- 10^seq(10, -2, length =100)
+ridge.mod <- glmnet(x, y, alpha=0, lambda=grid)
+dim(coef(ridge.mod))
+ridge.mod$lambda[50]
+coef(ridge.mod)[,50]
+sqrt(sum(coef(ridge.mod)[-1,50]^2))
+
+ridge.mod$lambda[60]
+coef(ridge.mod)[,60]
+sqrt(sum(coef(ridge.mod)[-1,60]^2))
+predict(ridge.mod, s=50, type="coefficients")[1:20,]
+
+set.seed(1)
+train <- sample(1:nrow(x),nrow(x)/2)
+test <- (-train)
+y.test <- y[test]
+
+ridge.mod <- glmnet(x[train,], y[train], alpha=0, lambda=grid, thresh=1e-12)
+ridge.pred <- predict(ridge.mod, s=4, newx=x[test,])
+mean((ridge.pred-y.test)^2)
+mean((mean(y[train])-y.test)^2)
+
+ridge.pred <- predict(ridge.mod, s=1e10, newx=x[test,])
+mean((ridge.pred-y.test)^2)
+
+ridge.pred <- predict(ridge.mod, s=0, newx=x[test,], exact = T, x=x[train,], y=y[train])
+mean((ridge.pred-y.test)^2)
+
+lm(y ~ x, subset=train)
+predict(ridge.mod, s=0, exact=T, type="coefficients", x=x[train,], y=y[train])[1:20,]
+
+set.seed(1)
+cv.out <- cv.glmnet(x[train,], y[train], alpha=0)
+plot(cv.out)
+bestlam <- cv.out$lambda.min
+bestlam
+
+ridge.pred <- predict(ridge.mod, s=bestlam, newx=x[test,])
+mean((ridge.pred - y.test)^2)
+
+out <- glmnet(x, y, alpha=0)
+predict(out, type="coefficients", s=bestlam)[1:20,]
+```
+
+## 6.6.2 The Lasso
+
+```{r}
+lasso.mod <- glmnet(x[train,], y[train], alpha=1, lambda=grid)
+plot(lasso.mod)
+
+set.seed(1)
+cv.out <- cv.glmnet(x[train,], y[train], alpha=1)
+plot(cv.out)
+bestlam <- cv.out$lambda.min
+lasso.pred <- predict(lasso.mod, s=bestlam, newx=x[test,])
+mean((lasso.pred - y.test)^2)
+
+out <- glmnet(x, y, alpha=1, lambda=grid)
+lasso.coef <- predict(out, type="coefficients", s= bestlam)[1:20,]
+lasso.coef
+```
+
+# 6.7 Lab 3: PCR and PLS Regression
+## 6.7.1 Principal Components Regression
+
+```{r}
+library(pls)
+set.seed(2)
+pcr.fit <- pcr(Salary ~ ., data=Hitters, scale=TRUE, validation ="CV")
+
+summary(pcr.fit)
+validationplot(pcr.fit, val.type="MSEP")
+
+set.seed(1)
+pcr.fit <- pcr(Salary ~ ., data=Hitters, subset=train, scale=TRUE, validation ="CV")
+validationplot(pcr.fit, val.type="MSEP")
+
+pcr.pred <- predict(pcr.fit, x[test ,], ncomp =7)
+mean((pcr.pred - y.test)^2)
+
+pcr.fit <- pcr(y ~ x, scale=TRUE, ncomp=7)
+summary(pcr.fit)
+```
+
+## 6.7.2 Partial Least Squares
+
+```{r}
+set.seed(1)
+pls.fit <- plsr(Salary ~ ., data=Hitters, subset=train, scale=TRUE, validation ="CV")
+summary(pls.fit)
+validationplot(pls.fit, val.type="MSEP")
+
+pls.pred <- predict(pls.fit, x[test ,], ncomp =2)
+mean((pls.pred - y.test)^2)
+
+pls.fit <- plsr(Salary ~ ., data=Hitters, scale=TRUE, ncomp=2)
+summary(pls.fit)
+```
+
+# 6.8 Exercises
+
+## 9. In this exercise, we will predict the number of applications received using the other variables in the College data set.
+
+  (a) Split the data set into a training set and a test set.
+  
+```{r}
+set.seed(1)
+train <- sample(1:nrow(College), nrow(College)/2)
+test <- -train
+College.train <- College[train, ]
+College.test <- College[test, ]
+err.list <- c(rep(NA,5))
+```
+
+  (b) Fit a linear model using least squares on the training set, and report the test error obtained.
+  
+```{r}
+lm.fit <- lm(Apps ~ ., data = College.train)
+lm.pred <- predict(lm.fit, College.test)
+(err.list[1] <- mean((lm.pred - College.test$Apps)^2))
+```
+
+  (c) Fit a ridge regression model on the training set, with λ chosen by cross-validation. Report the test error obtained.
+  
+```{r}
+train.mat <- model.matrix(Apps ~ ., data = College.train)
+test.mat <- model.matrix(Apps ~ ., data = College.test)
+fit.rr <- cv.glmnet(train.mat, College.train$Apps, alpha = 0)
+plot(fit.rr)
+fit.rr$lambda.min
+fit.rr$lambda.1se
+pred.rr <- predict(fit.rr, newx = test.mat)
+(err.list[2] <- mean((pred.rr - College.test$Apps)^2))
+```
+
+  (d) Fit a lasso model on the training set, with λ chosen by crossvalidation. Report the test error obtained, along with the number of non-zero coefficient estimates
+  
+```{r}
+fit.las <- cv.glmnet(train.mat, College.train$Apps)
+plot(fit.las)
+fit.las$lambda.min
+fit.las$lambda.1se
+pred.las <- predict(fit.las, newx = test.mat)
+(err.list[3] <- mean((pred.las - College.test$Apps)^2))
+predict(fit.las, type = "coefficients")
+```
+
+  (e) Fit a PCR model on the training set, with M chosen by crossvalidation. Report the test error obtained, along with the value of M selected by cross-validation.
+
+```{r}
+set.seed(1)
+pcr.fit <- pcr(Apps ~ ., data=College.train, scale=TRUE, validation ="CV")
+validationplot(pcr.fit, val.type="MSEP")
+summary(pcr.fit)
+
+pcr.pred <- predict(pcr.fit, College.test, ncomp =5)
+(err.list[4] <- mean((pcr.pred - College.test$Apps)^2))
+```
+
+  (f) Fit a PLS model on the training set, with M chosen by crossvalidation. Report the test error obtained, along with the value of M selected by cross-validation.
+
+```{r}
+set.seed(1)
+pls.fit <- plsr(Apps ~ ., data=College.train, scale=TRUE, validation ="CV")
+validationplot(pls.fit, val.type="MSEP")
+summary(pls.fit)
+
+pls.pred <- predict(pls.fit, College.test, ncomp = 6)
+(err.list[5] <-mean((pls.pred - College.test$Apps)^2))
+```
+
+  (g) Comment on the results obtained. How accurately can we predict the number of college applications received? Is there much difference among the test errors resulting from these five approaches?
+
+```{r}
+names(err.list) <- c("Least square", "Ridge Regression", "Lasso", "PCR", "PLS")
+err.list
+sqrt(err.list)
+```
+  Pretty sure my results are incorrect, but looks like it goes in order of least squares, pls, lasso, ridge regression, then PCR.
+  
+## 11. We will now try to predict per capita crime rate in the Boston data set.
+
+  (a) Try out some of the regression methods explored in this chapter, such as best subset selection, the lasso, ridge regression, and PCR. Present and discuss results for the approaches that you consider.
+  
+```{r}
+library(MASS)
+set.seed(1)
+# Split Data
+train <- sample(1:nrow(Boston), nrow(Boston)/2)
+test <- -train
+Boston.train <- Boston[train, ]
+Boston.test <- Boston[test, ]
+err.list <- c(rep(NA,6))
+
+
+# Linear model
+lm.fit <- lm(crim ~ ., data = Boston.train)
+lm.pred <- predict(lm.fit, Boston.test)
+(err.list[1] <- mean((lm.pred - Boston.test$crim)^2))
+
+# Best subset selection
+regsubsets.10 <- regsubsets(crim ~ ., data = Boston.test, nvmax = 14)
+reg.summary <- summary(regsubsets.10)
+par(mfrow = c(2, 2))
+plot(reg.summary$cp, xlab = "Number of variables", ylab = "Cp", type = "l")
+points(which.min(reg.summary$cp), reg.summary$cp[which.min(reg.summary$cp)], col = "red", cex = 2, pch = 20)
+plot(reg.summary$bic, xlab = "Number of variables", ylab = "BIC", type = "l")
+points(which.min(reg.summary$bic), reg.summary$bic[which.min(reg.summary$bic)], col = "red", cex = 2, pch = 20)
+plot(reg.summary$adjr2, xlab = "Number of variables", ylab = "Adjusted R^2", type = "l")
+points(which.max(reg.summary$adjr2), reg.summary$adjr2[which.max(reg.summary$adjr2)], col = "red", cex = 2, pch = 20)
+
+coef(regsubsets.10, which.min(reg.summary$cp))
+coef(regsubsets.10, which.min(reg.summary$bic))
+coef(regsubsets.10, which.max(reg.summary$adjr2))
+
+sub.pred <- predict(regsubsets.10, Boston.test, id = 3)
+(err.list[2] <- mean((sub.pred - Boston.test$crim)^2))
+
+
+# Ridge Regression
+train.mat <- model.matrix(crim ~ ., data = Boston.train)[, -1]
+test.mat <- model.matrix(crim ~ ., data = Boston.test)[, -1]
+fit.rr <- cv.glmnet(train.mat, Boston.train$crim, alpha = 0)
+plot(fit.rr)
+fit.rr$lambda.min
+fit.rr$lambda.1se
+pred.rr <- predict(fit.rr, newx = test.mat)
+(err.list[3] <- mean((pred.rr - Boston.test$crim)^2))
+predict(fit.rr, type = "coefficients")
+
+# Lasso
+fit.las <- cv.glmnet(train.mat, Boston.train$crim)
+plot(fit.las)
+fit.las$lambda.min
+fit.las$lambda.1se
+pred.las <- predict(fit.las, newx = test.mat)
+(err.list[4] <- mean((pred.las - Boston.test$crim)^2))
+predict(fit.las, type = "coefficients")
+
+# PCR
+pcr.fit <- pcr(crim ~ ., data = Boston.train, scale=TRUE, validation ="CV")
+validationplot(pcr.fit, val.type="MSEP")
+summary(pcr.fit)
+
+pcr.pred <- predict(pcr.fit, Boston.test, ncomp = 5)
+(err.list[5] <- mean((pcr.pred - Boston.test$crim)^2))
+# PLS
+pls.fit <- plsr(crim ~ ., data = Boston.train, scale=TRUE, validation ="CV")
+validationplot(pls.fit, val.type="MSEP")
+summary(pls.fit)
+
+pls.pred <- predict(pls.fit, Boston.test, ncomp = 5)
+(err.list[6] <- mean((pls.pred - Boston.test$crim)^2))
+
+# Overall
+names(err.list) <- c("Least square", "Best Subset", "Ridge Regression", "Lasso", "PCR", "PLS")
+err.list
+sqrt(err.list)
+```
+
+  (b) Propose a model (or set of models) that seem to perform well on this data set, and justify your answer. Make sure that you are evaluating model performance using validation set error, crossvalidation, or some other reasonable alternative, as opposed to using training error.  
+    The best subset selection had the lowest error according to validation set testing.  
+    
+  (c) Does your chosen model involve all of the features in the data set? Why or why not?  
+    No, some predictors are uninformative.
+
