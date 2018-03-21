@@ -122,8 +122,7 @@ legend("topright", legend=c("Span=0.2", "Span=0.5"), col=c("red","blue"), lty=1,
   (a) Perform polynomial regression to predict wage using age. Use cross-validation to select the optimal degree d for the polynomial. What degree was chosen, and how does this compare to the results of hypothesis testing using ANOVA? Make a plot of the resulting polynomial fit to the data.  
   
 ```{r}
-library(boot)
-
+# Anova testing
 fit.1 <- lm(wage ~ age, data=Wage)
 fit.2 <- lm(wage ~ poly(age, 2), data=Wage)
 fit.3 <- lm(wage ~ poly(age, 3), data=Wage)
@@ -131,15 +130,19 @@ fit.4 <- lm(wage ~ poly(age, 4), data=Wage)
 fit.5 <- lm(wage ~ poly(age, 5), data=Wage)
 anova(fit.1, fit.2, fit.3, fit.4, fit.5)
 
+# K-fold testing K = 10
 set.seed(1)
 deltas <- rep(NA, 10)
+library(boot)
 for(i in 1:10){
     fit <- glm(wage ~ poly(age, i), data = Wage)
     deltas[i] <- cv.glm(Wage, fit, K = 10)$delta[1]
+    names(deltas)[i] <- paste0("Degree = ", i)
 }
+deltas
 plot(1:10, deltas, xlab = "Degree", ylab = "Test MSE", type = "l")
 (d.min <- which.min(deltas))
-points(which.min(deltas), deltas[which.min(deltas)], col = "red", cex = 2, pch = 20)
+points(d.min, deltas[d.min], col = "red", cex = 2, pch = 20)
 
 fit <- lm(wage ~ poly(age, d.min), data=Wage)
 preds <- predict(fit, newdata = list(age=age.grid), se=TRUE)
@@ -150,19 +153,22 @@ title(paste0("Degree-", d.min," Polynomial"), outer=T)
 lines(age.grid, preds$fit, lwd=2, col="blue")
 matlines(age.grid, se.bands, lwd=1, col="blue", lty=3)
 ```
+  CV tests suggest 4 degrees while ANOVA suggests 3. 4 is possible but just slightly over the arbitary .05 cutoff.
 
   (b) Fit a step function to predict wage using age, and perform crossvalidation to choose the optimal number of cuts. Make a plot of the fit obtained. 
 
 ```{r}
-deltas <- rep(NA, 10)
+deltas <- rep(NA, 9)
 for (i in 2:10) {
     Wage$age.cut <- cut(Wage$age, i)
     fit <- glm(wage ~ age.cut, data = Wage)
-    deltas[i] <- cv.glm(Wage, fit, K = 10)$delta[1]
+    deltas[i-1] <- cv.glm(Wage, fit, K = 10)$delta[1]
+    names(deltas)[i-1] <- paste0("Cuts = ", i-1)
 }
-plot(2:10, deltas[-1], xlab = "Cuts", ylab = "Test MSE", type = "l")
+deltas
+plot(1:9, deltas, xlab = "Cuts", ylab = "Test MSE", type = "l")
 (d.min <- which.min(deltas))
-points(which.min(deltas), deltas[which.min(deltas)], col = "red", cex = 2, pch = 20)
+points(d.min, deltas[d.min], col = "red", cex = 2, pch = 20)
 
 plot(wage ~ age, data = Wage, col = "darkgrey")
 fit <- glm(wage ~ cut(age, d.min), data = Wage)
@@ -170,16 +176,19 @@ preds <- predict(fit, data.frame(age = age.grid))
 lines(age.grid, preds, col = "red", lwd = 2)
 ```
 
-### 7. The Wage data set contains a number of other features not exploredin this chapter, such as marital status (maritl), job class (jobclass), and others. Explore the relationships between some of these other predictors and wage, and use non-linear fitting techniques in order to it flexible models to the data. Create plots of the results obtained, and write a summary of your findings.
+### 7. The Wage data set contains a number of other features not explored in this chapter, such as marital status (maritl), job class (jobclass), and others. Explore the relationships between some of these other predictors and wage, and use non-linear fitting techniques in order to it flexible models to the data. Create plots of the results obtained, and write a summary of your findings.
 
 ```{r}
 library(ggplot2)
 summary(Wage)
 fit.1 <- lm(wage ~ education, data=Wage)
 fit.2 <- lm(wage ~ education + maritl, data=Wage)
-fit.3 <- lm(wage ~ education + maritl + poly(age, 4), data=Wage)
-anova(fit.1,fit.2,fit.3)
-summary(fit.3)
+fit.3 <- lm(wage ~ education + maritl + age, data=Wage)
+fit.4 <- lm(wage ~ education + maritl + poly(age, 2), data=Wage)
+fit.5 <- lm(wage ~ education + maritl + poly(age, 3), data=Wage)
+
+anova(fit.1,fit.2,fit.3,fit.4,fit.5)
+summary(fit.4)
 ggplot(Wage, aes(maritl, wage)) +
   geom_boxplot()
 ggplot(Wage, aes(education, wage)) +
@@ -188,16 +197,128 @@ ggplot(Wage, aes(education, wage)) +
 
 ### 8. Fit some of the non-linear models investigated in this chapter to the Auto data set. Is there evidence for non-linear relationships in this data set? Create some informative plots to justify your answer.
 
+```{r}
+summary(Auto)
+small.auto <- Auto[,-9]
+summary(small.auto)
+fit <- lm(mpg ~ ., data = small.auto)
+summary(fit)
+
+# Focus on weight
+weight.range <- range(small.auto$weight)
+weight.grid <- seq(weight.range[1],weight.range[2])
+deltas <- rep(NA,10)
+for(i in 1:10){
+    fit <- glm(mpg ~ poly(weight, i), data = small.auto)
+    deltas[i] <- cv.glm(small.auto, fit, K = 10)$delta[1]
+    names(deltas)[i] <- paste0("Degree = ", i)
+}
+deltas
+plot(1:10, deltas, xlab = "Degree", ylab = "Test MSE", type = "l")
+(d.min <- which.min(deltas))
+points(d.min, deltas[d.min], col = "red", cex = 2, pch = 20)
+
+fit <- lm(mpg ~ poly(weight, d.min), data=small.auto)
+preds <- predict(fit, newdata = list(weight=weight.grid), se=TRUE)
+se.bands <- cbind(preds$fit + 2*preds$se.fit, preds$fit - 2*preds$se.fit)
+
+plot(small.auto$weight, small.auto$mpg, xlim=weight.range, cex =.5, col="darkgrey")
+title(paste0("Degree-", d.min," Polynomial"), outer=T)
+lines(weight.grid, preds$fit, lwd=2, col="blue")
+matlines(weight.grid, se.bands, lwd=1, col="blue", lty=3)
+```
+  Weight has a non-linear relationship to mpg.
+
 ### 9. This question uses the variables dis (the weighted mean of distances to five Boston employment centers) and nox (nitrogen oxides concentration in parts per 10 million) from the Boston data. We will treat dis as the predictor and nox as the response.
 
   (a) Use the poly() function to fit a cubic polynomial regression to predict nox using dis. Report the regression output, and plot the resulting data and polynomial fits.  
+```{r}
+library(MASS)
+summary(Boston)
+fit <- lm(nox ~ poly(dis,3), data = Boston)
+summary(fit)
+dis.range <- range(Boston$dis)
+dis.grid <- seq(dis.range[1],dis.range[2])
+preds <- predict(fit, newdata = list(dis=dis.grid), se=TRUE)
+se.bands <- cbind(preds$fit + 2*preds$se.fit, preds$fit - 2*preds$se.fit)
 
-  (b) Plot the polynomial fits for a range of different polynomial degrees (say, from 1 to 10), and report the associated residual sum of squares.  
+plot(Boston$dis, Boston$nox, xlim=range(Boston$dis), cex =.5, col="darkgrey")
+title(paste0("Degree-", 3," Polynomial"), outer=T)
+lines(dis.grid, preds$fit, lwd=2, col="blue")
+matlines(dis.grid, se.bands, lwd=1, col="blue", lty=3)
+```
 
-  (c) Perform cross-validation or another approach to select the optimal degree for the polynomial, and explain your results.  
+  (b) Plot the polynomial fits for a range of different polynomial degrees (say, from 1 to 10), and report the associated residual sum of squares.
+```{r}
+rss <- rep(NA,10)
+for(i in 1:10){
+  fit <- lm(nox ~ poly(dis, i), data = Boston)
+  rss[i] <- with(summary(fit), df[2] * sigma^2)
+  names(rss)[i] <- paste0("Degree = ", i)
+  preds <- predict(fit, newdata = list(dis=dis.grid), se=TRUE)
+  se.bands <- cbind(preds$fit + 2*preds$se.fit, preds$fit - 2*preds$se.fit)
+  plot(Boston$dis, Boston$nox, xlim=range(Boston$dis), cex =.5, col="darkgrey")
+  title(paste0("Degree-", i," Polynomial"), outer=T)
+  lines(dis.grid, preds$fit, lwd=2, col="blue")
+  matlines(dis.grid, se.bands, lwd=1, col="blue", lty=3)
+}
+rss
+```
+
+  (c) Perform cross-validation or another approach to select the optimal degree for the polynomial, and explain your results. 
+  
+```{r}
+deltas <- rep(NA,10)
+for(i in 1:10){
+  fit <- glm(nox ~ poly(dis, i), data = Boston)
+  deltas[i] <- cv.glm(Boston, fit, K = 10)$delta[1]
+  names(deltas)[i] <- paste0("Degree = ", i)
+}
+deltas
+plot(1:10, deltas, xlab = "Degree", ylab = "Test MSE", type = "l")
+(d.min <- which.min(deltas))
+points(d.min, deltas[d.min], col = "red", cex = 2, pch = 20)
+```
 
   (d) Use the bs() function to fit a regression spline to predict nox using dis. Report the output for the fit using four degrees of freedom. How did you choose the knots? Plot the resulting fit.  
-
+```{r}
+fit <- lm(nox ~ bs(dis, df=4), data=Boston)
+pred <- predict(fit, newdata = list(dis=dis.grid), se=T)
+plot(Boston$dis, Boston$nox, col="gray")
+lines(dis.grid, pred$fit, lwd=2)
+lines(dis.grid, pred$fit + 2*pred$se, lty="dashed")
+lines(dis.grid, pred$fit - 2*pred$se, lty="dashed")
+```
+  Knots picked by program
+  
   (e) Now fit a regression spline for a range of degrees of freedom, and plot the resulting fits and report the resulting RSS. Describe the results obtained.  
+```{r}
+rss <- rep(NA,15)
+for(i in 1:15){
+  fit <- lm(nox ~ bs(dis, df=i), data = Boston)
+  rss[i] <- with(summary(fit), df[2] * sigma^2)
+  names(rss)[i] <- paste0("Degree = ", i)
+  preds <- predict(fit, newdata = list(dis=dis.grid), se=TRUE)
+  se.bands <- cbind(preds$fit + 2*preds$se.fit, preds$fit - 2*preds$se.fit)
+  plot(Boston$dis, Boston$nox, xlim=range(Boston$dis), cex =.5, col="darkgrey")
+  title(paste0("Degree-", i," Polynomial"), outer=T)
+  lines(dis.grid, preds$fit, lwd=2, col="blue")
+  matlines(dis.grid, se.bands, lwd=1, col="blue", lty=3)
+}
+rss
+```
 
-  (f) Perform cross-validation or another approach in order to select the best degrees of freedom for a regression spline on this data. Describe your results.
+  (f) Perform cross-validation or another approach in order to select the best degrees of freedom for a regression spline on this data. Describe your results
+```{r}
+deltas <- rep(NA,15)
+for(i in 1:15){
+  fit <- glm(nox ~ bs(dis, df=i), data = Boston)
+  deltas[i] <- cv.glm(Boston, fit, K = 10)$delta[1]
+  names(deltas)[i] <- paste0("Degree = ", i)
+}
+deltas
+plot(1:15, deltas, xlab = "Degree", ylab = "Test MSE", type = "l")
+(d.min <- which.min(deltas))
+points(d.min, deltas[d.min], col = "red", cex = 2, pch = 20)
+```
+
