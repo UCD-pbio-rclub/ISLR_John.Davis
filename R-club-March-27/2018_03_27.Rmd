@@ -1,0 +1,343 @@
+---
+title: "2018_03_27"
+author: "John D."
+date: "March 26, 2018"
+output:
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## load data
+
+```{r echo=F}
+library(ISLR)
+library(ggplot2)
+library(dplyr)
+```
+
+# 7.8 Lab: Non-linear Modeling
+## 7.8.1 Polynomial Regression and Step Functions
+
+```{r}
+fit <- lm(wage ~ poly(age,4), data = Wage)
+coef(summary(fit))
+
+fit2 <- lm(wage ~ poly(age,4,raw=T), data = Wage)
+coef(summary(fit2))
+
+fit2a <- lm(wage ~ age + I(age^2) + I(age^3) + I(age^4), data = Wage)
+coef(fit2a)
+
+fit2b <- lm(wage ~ age + age^2 + age^3 + age^4, data = Wage)
+coef(fit2b)
+
+agelims <- range(Wage$age)
+age.grid <- seq(agelims[1], agelims[2])
+preds <- predict(fit, newdata = list(age = age.grid), se = T)
+se.bands <- cbind(preds$fit + 2*preds$se.fit, preds$fit - 2*preds$se.fit)
+
+plot(Wage$age, Wage$wage, xlim=agelims, cex =.5, col="darkgrey")
+title("Degree-4 Polynomial", outer=T)
+lines(age.grid, preds$fit, lwd=2, col="blue")
+matlines(age.grid, se.bands, lwd=1, col="blue", lty=3)
+
+preds2 <- predict(fit2, newdata = list(age=age.grid), se=TRUE)
+max(abs(preds$fit - preds2$fit))
+
+fit.1 <- lm(wage ~ age, data=Wage)
+fit.2 <- lm(wage ~ poly(age ,2), data=Wage)
+fit.3 <- lm(wage ~ poly(age ,3), data=Wage)
+fit.4 <- lm(wage ~ poly(age ,4), data=Wage)
+fit.5 <- lm(wage ~ poly(age ,5), data=Wage)
+anova(fit.1,fit.2,fit.3,fit.4,fit.5)
+
+coef(summary(fit.5))
+(-11.983)^2
+
+fit.1 <- lm(wage ~ education + age, data=Wage)
+fit.2 <- lm(wage ~ education + poly(age, 2), data=Wage)
+fit.3 <- lm(wage ~ education + poly(age, 3), data=Wage)
+anova(fit.1,fit.2,fit.3)
+
+fit <- glm(I(wage>250) ~ poly(age, 4), data=Wage, family=binomial)
+preds <- predict(fit, newdata = list(age=age.grid), se=T)
+
+pfit <- exp(preds$fit)/(1+exp(preds$fit))
+se.bands.logit <- cbind(preds$fit + 2*preds$se.fit, preds$fit - 2*preds$se.fit)
+se.bands <- exp(se.bands.logit)/(1+exp(se.bands.logit))
+
+preds <- predict(fit, newdata = list(age=age.grid), type="response", se=T)
+
+plot(Wage$age, I(Wage$wage>250), xlim=agelims, type="n", ylim=c(0,.2))
+points(jitter(Wage$age), I((Wage$wage>250)/5), cex=.5, pch ="|", col="darkgrey")
+lines(age.grid, pfit, lwd=2, col="blue")
+matlines(age.grid, se.bands, lwd=1, col="blue", lty=3)
+
+table(cut(Wage$age, 4))
+fit <- lm(wage ~ cut(age, 4), data=Wage)
+coef(summary(fit))
+```
+
+## 7.8.2 Splines
+
+```{r}
+library(splines)
+fit <- lm(wage ~ bs(age, knots=c(25,40,60)), data=Wage)
+pred <- predict(fit, newdata = list(age=age.grid), se=T)
+plot(Wage$age, Wage$wage, col="gray")
+lines(age.grid, pred$fit, lwd=2)
+lines(age.grid, pred$fit + 2*pred$se, lty="dashed")
+lines(age.grid, pred$fit - 2*pred$se, lty="dashed")
+
+dim(bs(Wage$age, knots=c(25,40,60)))
+dim(bs(Wage$age, df=6))
+attr(bs(Wage$age, df=6), "knots")
+
+fit2 <- lm(wage ~ ns(age, df=4), data=Wage)
+pred2 <- predict(fit2, newdata=list(age=age.grid), se=T)
+lines(age.grid, pred2$fit, col="red", lwd=2)
+
+plot(Wage$age, Wage$wage, xlim=agelims, cex=.5, col="darkgrey")
+title("Smoothing Spline")
+fit <- smooth.spline(Wage$age, Wage$wage, df=16)
+fit2 <- smooth.spline(Wage$age, Wage$wage, cv=TRUE)
+fit2$df
+
+lines(fit, col="red", lwd=2)
+lines(fit2, col="blue", lwd=2)
+legend("topright", legend=c("16 DF", "6.8 DF"), col=c("red","blue"), lty=1, lwd=2, cex=.8)
+
+plot(Wage$age, Wage$wage, xlim=agelims, cex=.5, col="darkgrey")
+title("Local Regression")
+fit <- loess(wage ~ age, span=.2, data=Wage)
+fit2 <- loess(wage ~ age, span=.5, data=Wage)
+lines(age.grid, predict(fit, data.frame(age=age.grid)), col="red", lwd=2)
+lines(age.grid, predict(fit2, data.frame(age=age.grid)), col="blue", lwd=2)
+legend("topright", legend=c("Span=0.2","Span=0.5"), col=c("red","blue"), lty=1, lwd=2, cex=.8)
+```
+
+## 7.8.3 GAMs
+
+```{r}
+library(gam)
+gam1 <- lm(wage ~ ns(year, 4) + ns(age, 5) + education, data=Wage)
+gam.m3 <- gam(wage ~ s(year, 4) + s(age, 5) + education, data=Wage)
+
+plot(gam.m3, se=TRUE ,col ="blue")
+par(mfrow=c(1,3))
+plot.Gam(gam1, se=TRUE, col="red")
+
+gam.m1 <- gam(wage ~ s(age, 5) + education, data=Wage)
+gam.m2 <- gam(wage ~ year + s(age, 5) + education, data=Wage)
+gam.m3 <- gam(wage ~ s(year, 4) + s(age, 5) + education, data=Wage)
+anova(gam.m1,gam.m2,gam.m3,test="F")
+
+summary (gam.m3)
+
+preds <- predict(gam.m2, newdata=Wage)
+
+gam.lo <- gam(wage ~ s(year, df=4) + lo(age, span=0.7) + education, data=Wage)
+plot.Gam(gam.lo, se=TRUE, col="green")
+
+gam.lo.i <- gam(wage ~ lo(year, age, span=0.5) + education, data=Wage)
+library(akima)
+par(mfrow=c(1,1))
+plot(gam.lo.i)
+
+gam.lr <- gam(I(wage>250) ~ year + s(age, df=5) + education, family=binomial, data=Wage)
+par(mfrow=c(1,3))
+plot(gam.lr, se=T, col="green")
+table(Wage$education, I(Wage$wage>250))
+
+gam.lr.s <- gam(I(wage>250) ~ year + s(age, df=5) + education, family=binomial, data=Wage, subset=(education !="1. < HS Grad"))
+plot(gam.lr.s, se=T, col="green")
+```
+
+# 7.9 Exercises
+
+### 7. The Wage data set contains a number of other features not explored in this chapter, such as marital status (maritl), job class (jobclass), and others. Explore the relationships between some of these other predictors and wage, and use non-linear fitting techniques in order to it flexible models to the data. Create plots of the results obtained, and write a summary of your findings.
+
+```{r}
+library(ggplot2)
+summary(Wage)
+fit.1 <- lm(wage ~ education, data=Wage)
+fit.2 <- lm(wage ~ education + maritl, data=Wage)
+fit.3 <- lm(wage ~ education + maritl + age, data=Wage)
+fit.4 <- lm(wage ~ education + maritl + poly(age, 2), data=Wage)
+fit.5 <- lm(wage ~ education + maritl + poly(age, 3), data=Wage)
+
+anova(fit.1,fit.2,fit.3,fit.4,fit.5)
+summary(fit.4)
+plot.Gam(fit.4, se=TRUE, col="red")
+
+gam.m1 <- gam(wage ~ race, data=Wage)
+gam.m2 <- gam(wage ~ race + education, data=Wage)
+gam.m3 <- gam(wage ~ race + education + jobclass, data=Wage)
+anova(gam.m1,gam.m2,gam.m3,test="F")
+
+summary (gam.m3)
+
+plot(gam.m3)
+
+par(mfrow = c(1,1))
+preds <- predict(gam.m3, newdata=Wage)
+df <- cbind(Observed = Wage$wage, Predicted = preds)
+plot(df)
+abline(0,1, col="red")
+
+# Remove high earners
+gam.m3 <- gam(wage ~ race + education + jobclass, data=subset(Wage, subset = wage < 250))
+preds <- predict(gam.m3, newdata=subset(Wage, subset = wage < 250))
+df <- cbind(Observed = subset(Wage, subset = wage < 250)$wage, Predicted = preds)
+plot(df)
+abline(0,1, col="red")
+
+# Add more in
+gam.m4 <- gam(wage ~ race + education + jobclass + s(age, df=5), data=Wage)
+preds <- predict(gam.m4, newdata=Wage)
+df <- cbind(Observed = Wage$wage, Predicted = preds)
+plot(df)
+abline(0,1, col="red")
+
+# Add more in
+gam.m5 <- gam(wage ~ race + education + jobclass + s(age, df=5) + maritl, data=Wage)
+preds <- predict(gam.m5, newdata=Wage)
+df <- cbind(Observed = Wage$wage, Predicted = preds)
+plot(df)
+abline(0,1, col="red")
+
+# Add more in
+gam.m6 <- gam(wage ~ race + education + jobclass + s(age, df=5) + maritl + year, data=Wage)
+preds <- predict(gam.m6, newdata=Wage)
+df <- cbind(Observed = Wage$wage, Predicted = preds)
+plot(df)
+abline(0,1, col="red")
+
+# Plot all 6 but with high earners removed
+gam.m1 <- gam(wage ~ race, data=subset(Wage, subset = wage < 250))
+gam.m2 <- gam(wage ~ race + education, data=subset(Wage, subset = wage < 250))
+gam.m3 <- gam(wage ~ race + education + jobclass, data=subset(Wage, subset = wage < 250))
+gam.m4 <- gam(wage ~ race + education + jobclass + s(age, df=5), data=subset(Wage, subset = wage < 250))
+gam.m5 <- gam(wage ~ race + education + jobclass + s(age, df=5) + maritl, data=subset(Wage, subset = wage < 250))
+gam.m6 <- gam(wage ~ race + education + jobclass + s(age, df=5) + maritl + year, data=subset(Wage, subset = wage < 250))
+
+par(mfrow=c(2,3))
+for(i in 1:6){
+  fit <- get(paste0("gam.m",i))
+  preds <- predict(fit, newdata=subset(Wage, subset = wage < 250))
+  df <- cbind(Observed = subset(Wage, subset = wage < 250)$wage, Predicted = preds)
+  plot(df)
+  title(paste("Model", i))
+  abline(0,1, col="red")
+}
+
+fits <- paste0("anova(",paste0("gam.m",1:6, collapse = ","),")")
+fits
+eval(parse(text = fits))
+```
+
+### 8. Fit some of the non-linear models investigated in this chapter to the Auto data set. Is there evidence for non-linear relationships in this data set? Create some informative plots to justify your answer.
+
+```{r}
+library(boot)
+summary(Auto)
+small.auto <- Auto[,-9]
+summary(small.auto)
+fit <- lm(mpg ~ ., data = small.auto)
+summary(fit)
+
+# Focus on weight
+weight.range <- range(small.auto$weight)
+weight.grid <- seq(weight.range[1],weight.range[2])
+deltas <- rep(NA,10)
+for(i in 1:10){
+    fit <- glm(mpg ~ poly(weight, i), data = small.auto)
+    deltas[i] <- cv.glm(small.auto, fit, K = 10)$delta[1]
+    names(deltas)[i] <- paste0("Degree = ", i)
+}
+deltas
+plot(1:10, deltas, xlab = "Degree", ylab = "Test MSE", type = "l")
+(d.min <- which.min(deltas))
+points(d.min, deltas[d.min], col = "red", cex = 2, pch = 20)
+
+fit <- lm(mpg ~ poly(weight, d.min), data=small.auto)
+preds <- predict(fit, newdata = list(weight=weight.grid), se=TRUE)
+se.bands <- cbind(preds$fit + 2*preds$se.fit, preds$fit - 2*preds$se.fit)
+
+plot(small.auto$weight, small.auto$mpg, xlim=weight.range, cex =.5, col="darkgrey")
+title(paste0("Degree-", d.min," Polynomial"), outer=T)
+lines(weight.grid, preds$fit, lwd=2, col="blue")
+matlines(weight.grid, se.bands, lwd=1, col="blue", lty=3)
+
+### New methods weight,displacement, and cylinders
+gam.m1 <- gam(mpg ~ weight, data=small.auto)
+gam.m2 <- gam(mpg ~ s(weight, 5), data=small.auto)
+gam.m3 <- gam(mpg ~ s(weight, 5) + displacement, data=small.auto)
+gam.m4 <- gam(mpg ~ s(weight, 5) + s(displacement, 5), data=small.auto)
+gam.m5 <- gam(mpg ~ s(weight, 5) + s(displacement, 5) + cylinders, data=small.auto)
+
+par(mfrow=c(1,1))
+
+for(i in 1:5){
+  fit <- get(paste0("gam.m",i))
+  preds <- predict(fit, newdata=small.auto)
+  df <- cbind(Observed = small.auto$mpg, Predicted = preds)
+  plot(df)
+  title(paste("Model", i))
+  abline(0,1, col="red")
+}
+
+fits <- paste0("anova(",paste0("gam.m",1:5, collapse = ","),")")
+fits
+eval(parse(text = fits))
+```
+
+## 10. This question relates to the College data set.
+  (a) Split the data into a training set and a test set. Using out-of-state tuition as the response and the other variables as the predictors, perform forward stepwise selection on the training set in order to identify a satisfactory model that uses just a subset of the predictors.  
+  
+```{r}
+library(leaps)
+set.seed(1)
+train.split <- sample(1:nrow(College), nrow(College)/2, replace = F)
+train.vector <- 1:nrow(College)
+train.vector[train.split] <- FALSE
+train.vector <- as.logical(train.vector)
+train <- College[train.vector,]
+test <- College[!train.vector,]
+forward.fit.1 <- regsubsets(Outstate ~ ., data=train, nvmax=17, method = "forward")
+summary(forward.fit.1)
+plot(forward.fit.1)
+
+test.mat <- model.matrix(Outstate ~ ., data=test)
+val.errors <- rep(NA ,17)
+for(i in 1:17){
+  coefi <- coef(forward.fit.1, id=i)
+  pred <- test.mat[,names(coefi)]%*%coefi
+  val.errors[i] <- mean((test$Outstate-pred)^2)
+}
+val.errors
+(fit.min <- which.min(val.errors))
+coef(forward.fit.1, fit.min)
+plot(1:17, val.errors, type = "b")
+points(fit.min,val.errors[fit.min], col="red", pch = 20)
+```
+
+  6 looks like a good number to use
+
+  (b) Fit a GAM on the training data, using out-of-state tuition as the response and the features selected in the previous step as the predictors. Plot the results, and explain your findings.  
+  
+```{r}
+selected <- sub("Yes","",names(coef(forward.fit.1, 6)[-1]))
+selected
+small.train <- train %>% dplyr::select(Outstate, selected)
+plot(small.train)
+```
+
+
+  (c) Evaluate the model obtained on the test set, and explain the results obtained.  
+
+  (d) For which variables, if any, is there evidence of a non-linear relationship with the response?  
