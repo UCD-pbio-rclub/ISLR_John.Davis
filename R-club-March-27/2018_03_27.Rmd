@@ -1,7 +1,7 @@
 ---
 title: "2018_03_27"
 author: "John D."
-date: "March 26, 2018"
+date: "March 27, 2018"
 output:
   html_document:
     keep_md: yes
@@ -17,6 +17,10 @@ knitr::opts_chunk$set(echo = TRUE)
 library(ISLR)
 library(ggplot2)
 library(dplyr)
+library(splines)
+library(leaps)
+library(boot)
+library(gam)
 ```
 
 # 7.8 Lab: Non-linear Modeling
@@ -85,7 +89,6 @@ coef(summary(fit))
 ## 7.8.2 Splines
 
 ```{r}
-library(splines)
 fit <- lm(wage ~ bs(age, knots=c(25,40,60)), data=Wage)
 pred <- predict(fit, newdata = list(age=age.grid), se=T)
 plot(Wage$age, Wage$wage, col="gray")
@@ -123,7 +126,6 @@ legend("topright", legend=c("Span=0.2","Span=0.5"), col=c("red","blue"), lty=1, 
 ## 7.8.3 GAMs
 
 ```{r}
-library(gam)
 gam1 <- lm(wage ~ ns(year, 4) + ns(age, 5) + education, data=Wage)
 gam.m3 <- gam(wage ~ s(year, 4) + s(age, 5) + education, data=Wage)
 
@@ -162,7 +164,6 @@ plot(gam.lr.s, se=T, col="green")
 ### 7. The Wage data set contains a number of other features not explored in this chapter, such as marital status (maritl), job class (jobclass), and others. Explore the relationships between some of these other predictors and wage, and use non-linear fitting techniques in order to it flexible models to the data. Create plots of the results obtained, and write a summary of your findings.
 
 ```{r}
-library(ggplot2)
 summary(Wage)
 fit.1 <- lm(wage ~ education, data=Wage)
 fit.2 <- lm(wage ~ education + maritl, data=Wage)
@@ -243,7 +244,6 @@ eval(parse(text = fits))
 ### 8. Fit some of the non-linear models investigated in this chapter to the Auto data set. Is there evidence for non-linear relationships in this data set? Create some informative plots to justify your answer.
 
 ```{r}
-library(boot)
 summary(Auto)
 small.auto <- Auto[,-9]
 summary(small.auto)
@@ -300,23 +300,21 @@ eval(parse(text = fits))
   (a) Split the data into a training set and a test set. Using out-of-state tuition as the response and the other variables as the predictors, perform forward stepwise selection on the training set in order to identify a satisfactory model that uses just a subset of the predictors.  
   
 ```{r}
-library(leaps)
+summary(College)
+dim(College)
 set.seed(1)
-train.split <- sample(1:nrow(College), nrow(College)/2, replace = F)
-train.vector <- 1:nrow(College)
-train.vector[train.split] <- FALSE
-train.vector <- as.logical(train.vector)
-train <- College[train.vector,]
-test <- College[!train.vector,]
+train <- College[sample(1:nrow(College), nrow(College)/2, replace = F),]
+test <- College[!(row.names(College) %in% row.names(train)),]
 forward.fit.1 <- regsubsets(Outstate ~ ., data=train, nvmax=17, method = "forward")
 summary(forward.fit.1)
 plot(forward.fit.1)
 
 test.mat <- model.matrix(Outstate ~ ., data=test)
-val.errors <- rep(NA ,17)
+val.errors <- rep(NA, 17)
 for(i in 1:17){
   coefi <- coef(forward.fit.1, id=i)
   pred <- test.mat[,names(coefi)]%*%coefi
+  names(val.errors)[i] <- paste("Number of variables", i)
   val.errors[i] <- mean((test$Outstate-pred)^2)
 }
 val.errors
@@ -326,18 +324,44 @@ plot(1:17, val.errors, type = "b")
 points(fit.min,val.errors[fit.min], col="red", pch = 20)
 ```
 
-  6 looks like a good number to use
+  16 is the lowest, buy 6 looks like a good number to use.
 
   (b) Fit a GAM on the training data, using out-of-state tuition as the response and the features selected in the previous step as the predictors. Plot the results, and explain your findings.  
   
 ```{r}
+#Private being converted to a Dummy variable causes issues, have to revert name to original name
 selected <- sub("Yes","",names(coef(forward.fit.1, 6)[-1]))
 selected
 small.train <- train %>% dplyr::select(Outstate, selected)
 plot(small.train)
+
+gam.m1 <- gam(Outstate ~ Private + s(Room.Board) + s(Terminal) + s(perc.alumni) +
+                s(Expend) + s(Grad.Rate), data = train )
+summary(gam.m1)
+par(mfrow=c(2,3))
+plot(gam.m1, se = T)
 ```
 
 
-  (c) Evaluate the model obtained on the test set, and explain the results obtained.  
+  (c) Evaluate the model obtained on the test set, and explain the results obtained. 
+  
+```{r}
+pred.1 <- predict(gam.m1, newdata = test)
+rmse.1 <- sqrt(mean((test$Outstate-pred.1)^2))
+rmse.1
+
+par(mfrow=c(1,1))
+plot(test$Outstate,pred.1)
+abline(0,1, col = "red")
+cor(test$Outstate,pred.1)
+```
+
+  Decent, but not great
 
   (d) For which variables, if any, is there evidence of a non-linear relationship with the response?  
+  
+```{r}
+summary(gam.m1)
+```
+
+  Expend appears to have a strong non-linear relationship with the response.
