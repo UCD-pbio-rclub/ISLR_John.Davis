@@ -1,0 +1,253 @@
+---
+title: "2018_04_06"
+author: "John D."
+date: "April 6, 2018"
+output:
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## load data
+
+```{r}
+library(ISLR)
+library(ggplot2)
+library(tree)
+library(MASS)
+library(dplyr)
+```
+
+# 8.3 Lab: Decision Trees
+
+## 8.3.1 Fitting Classification Trees
+
+```{r}
+attach(Carseats)
+High <- ifelse(Sales <= 8, "No","Yes")
+Carseats <- data.frame(Carseats,High)
+tree.carseats <- tree(High ~ .-Sales, Carseats)
+
+summary(tree.carseats)
+
+plot(tree.carseats)
+text(tree.carseats, pretty = 0)
+tree.carseats
+
+set.seed(2)
+train <- sample(1:nrow(Carseats), 200)
+Carseats.test <- Carseats[-train,]
+High.test <- High[-train]
+tree.carseats <- tree(High ~ .-Sales, Carseats, subset=train)
+tree.pred <- predict(tree.carseats, Carseats.test, type="class")
+table(tree.pred, High.test)
+(86+57)/200
+
+set.seed(3)
+cv.carseats <- cv.tree(tree.carseats,FUN=prune.misclass)
+names(cv.carseats)
+cv.carseats
+
+par(mfrow=c(1,2))
+plot(cv.carseats$size, cv.carseats$dev, type="b")
+plot(cv.carseats$k, cv.carseats$dev, type="b")
+
+prune.carseats <- prune.misclass(tree.carseats, best=9)
+plot(prune.carseats)
+text(prune.carseats, pretty = 0)
+
+tree.pred <- predict(prune.carseats, Carseats.test, type="class")
+table(tree.pred, High.test)
+(94+60)/200
+
+prune.carseats  <- prune.misclass(tree.carseats, best=15)
+plot(prune.carseats)
+text(prune.carseats, pretty = 0)
+tree.pred <- predict(prune.carseats, Carseats.test, type="class")
+table(tree.pred, High.test)
+(86+62)/200
+detach(Carseats)
+```
+
+## 8.3.2 Fitting Regression Trees
+
+```{r}
+set.seed(1)
+train <- sample(1:nrow(Boston), nrow(Boston)/2)
+tree.boston <- tree(medv ~., Boston, subset=train)
+summary(tree.boston)
+
+plot(tree.boston)
+text(tree.boston, pretty = 0)
+
+cv.boston <- cv.tree(tree.boston)
+plot(cv.boston$size, cv.boston$dev, type='b')
+
+prune.boston <- prune.tree(tree.boston, best=5)
+plot(prune.boston)
+text(prune.boston, pretty = 0)
+
+yhat <- predict(tree.boston, newdata=Boston[-train,])
+boston.test <- Boston[-train, "medv"]
+plot(yhat, boston.test)
+abline(0,1)
+(mse <- mean((yhat - boston.test)^2))
+sqrt(mse)
+```
+
+# 8.4 Exercises
+
+### 1. Draw an example (of your own invention) of a partition of two-dimensional feature space that could result from recursive binary splitting. Your example should contain at least six regions. Draw a decision tree corresponding to this partition. Be sure to label all aspects of your figures, including the regions R1, R2,..., the cutpoints t1, t2,..., and so forth. Hint: Your result should look something like Figures 8.1 and 8.2.
+
+![2D](2D.png?raw=true "2D")
+![Tree](tree.png?raw=true "Tree")
+
+### 8. In the lab, a classification tree was applied to the Carseats data set after converting Sales into a qualitative response variable. Now we will seek to predict Sales using regression trees and related approaches, treating the response as a quantitative variable.
+
+(a) Split the data set into a training set and a test set.
+
+```{r}
+set.seed(1)
+train <- sample(1:nrow(Carseats), 200)
+Carseats.train <- Carseats[train,-12]
+Carseats.test <- Carseats[-train,-12]
+```
+
+(b) Fit a regression tree to the training set. Plot the tree, and interpret
+the results. What test MSE do you obtain?
+
+```{r}
+tree.carseats <- tree(Sales ~ ., Carseats.train)
+summary(tree.carseats)
+par(mfrow=c(1,1))
+plot(tree.carseats)
+text(tree.carseats, pretty = 0)
+yhat <- predict(tree.carseats, newdata=Carseats.test)
+sales.test <- Carseats.test$Sales
+plot(yhat, sales.test)
+abline(0,1)
+(mse <- mean((yhat - sales.test)^2))
+sqrt(mse)
+```
+Prediction on average is within 2000 unit sales
+
+(c) Use cross-validation in order to determine the optimal level of
+tree complexity. Does pruning the tree improve the test MSE?
+
+```{r}
+cv.carseats <- cv.tree(tree.carseats)
+cv.carseats
+plot(cv.carseats$size, cv.carseats$dev, type='b')
+(best <- cv.carseats$size[which.min(cv.carseats$dev)])
+prune.carseats <- prune.tree(tree.carseats, best=best)
+plot(prune.carseats)
+text(prune.carseats, pretty = 0)
+
+yhat <- predict(prune.carseats, newdata=Carseats.test)
+sales.test <- Carseats.test$Sales
+par(mfrow=c(1,1))
+plot(yhat, sales.test)
+abline(0,1)
+(mse <- mean((yhat - sales.test)^2))
+sqrt(mse)
+```
+Made it worse
+
+### 9. This problem involves the OJ data set which is part of the ISLR package.
+
+(a) Create a training set containing a random sample of 800 observations, and a test set containing the remaining observations.
+
+```{r}
+summary(OJ)
+dim(OJ)
+set.seed(123)
+train <- sample(1:nrow(OJ), 800)
+OJ.train <- OJ[train,]
+OJ.test <- OJ[-train,]
+```
+
+(b) Fit a tree to the training data, with Purchase as the response and the other variables as predictors. Use the summary() function to produce summary statistics about the tree, and describe the results obtained. What is the training error rate? How many terminal nodes does the tree have?
+
+```{r}
+OJ.tree <- tree(Purchase ~ ., data = OJ.train)
+summary(OJ.tree)
+```
+Training error is 16% and tree has 10 terminal nodes
+
+(c) Type in the name of the tree object in order to get a detailed text output. Pick one of the terminal nodes, and interpret the information displayed.
+
+```{r}
+OJ.tree
+#7) LoyalCH > 0.753545 265   97.720 CH ( 0.95472 0.04528 ) *
+```
+Split criterion in this case brand loyalty for Citus Hills, # of observations in branch, deviance, overall prediction for branch Citrus Hill in this case, Fraction that are Citrus Hill and Fraction that are Minute Maid
+
+(d) Create a plot of the tree, and interpret the results.
+
+```{r}
+plot(OJ.tree)
+text(OJ.tree, pretty = 0)
+```
+Loyalty and Price difference play a huge role in the decision
+
+(e) Predict the response on the test data, and produce a confusion
+matrix comparing the test labels to the predicted test labels.
+What is the test error rate?
+
+```{r}
+pred <- predict(OJ.tree, newdata=OJ.test, type = "class")
+purchase.test <- OJ.test$Purchase
+table(pred, purchase.test)
+(1-((158+64)/270))*100
+```
+17.78% MSE
+
+(f) Apply the cv.tree() function to the training set in order to determine the optimal tree size.
+
+```{r}
+OJ.cv <- cv.tree(OJ.tree,FUN=prune.misclass)
+```
+
+(g) Produce a plot with tree size on the x-axis and cross-validated classification error rate on the y-axis.
+
+```{r}
+plot(OJ.cv$size, OJ.cv$dev, type="b")
+```
+
+(h) Which tree size corresponds to the lowest cross-validated classification error rate?
+```{r}
+(best <- OJ.cv$size[which.min(OJ.cv$dev)])
+```
+2 is the best
+
+(i) Produce a pruned tree corresponding to the optimal tree size obtained using cross-validation. If cross-validation does not lead to selection of a pruned tree, then create a pruned tree with five terminal nodes.
+
+```{r}
+OJ.prune <- prune.misclass(OJ.tree, best=best)
+plot(OJ.prune)
+text(OJ.prune, pretty = 0)
+```
+
+(j) Compare the training error rates between the pruned and unpruned
+trees. Which is higher?
+
+```{r}
+summary(OJ.tree)
+summary(OJ.prune)
+```
+Pruned has a higher error
+
+(k) Compare the test error rates between the pruned and unpruned
+trees. Which is higher?
+```{r}
+pred <- predict(OJ.tree, OJ.test, type="class")
+table(pred, OJ.test$Purchase)
+(1-(158+64)/270)*100
+prune.pred <- predict(OJ.prune, OJ.test, type="class")
+table(prune.pred, OJ.test$Purchase)
+(1-(143+76)/270)*100
+```
+Pruned has a higher error
