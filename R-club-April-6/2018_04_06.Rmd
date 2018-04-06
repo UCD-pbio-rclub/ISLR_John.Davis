@@ -19,6 +19,7 @@ library(ggplot2)
 library(tree)
 library(MASS)
 library(dplyr)
+library(reshape2)
 ```
 
 # 8.3 Lab: Decision Trees
@@ -104,6 +105,20 @@ sqrt(mse)
 
 ![2D](2D.png?raw=true "2D")
 ![Tree](tree.png?raw=true "Tree")
+
+
+### 3. Consider the Gini index, classification error, and entropy in a simple classification setting with two classes. Create a single plot that displays each of these quantities as a function of ˆpm1. The xaxis should display ˆpm1, ranging from 0 to 1, and the y-axis should display the value of the Gini index, classification error, and entropy. Hint: In a setting with two classes, pˆm1 = 1 − pˆm2. You could make this plot by hand, but it will be much easier to make in R.
+
+```{r}
+ps <- seq(0,1,.05)
+class.error <- 1 - pmax(ps, 1-ps)
+gini.index <- 2 * ps * (1 - ps)
+entropy <- -(ps *log(ps) + (1 - ps) * log(1 -ps))
+df <- melt(data.frame(ps,class.error,gini.index,entropy), id.vars = "ps")
+ggplot(df, aes(ps,value, col=variable)) + 
+  geom_point() + 
+  stat_smooth()
+```
 
 ### 8. In the lab, a classification tree was applied to the Carseats data set after converting Sales into a qualitative response variable. Now we will seek to predict Sales using regression trees and related approaches, treating the response as a quantitative variable.
 
