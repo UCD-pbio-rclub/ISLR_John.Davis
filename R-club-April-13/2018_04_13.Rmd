@@ -1,0 +1,444 @@
+---
+title: "2018_04_13"
+author: "John D."
+date: "April 13, 2018"
+output:
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = T)
+```
+
+## load data
+
+```{r}
+library(ISLR)
+library(ggplot2)
+library(tree)
+library(MASS)
+library(dplyr)
+library(reshape2)
+library(randomForest)
+library(gbm)
+library(glmnet)
+```
+
+# 8.3 Lab: Decision Trees
+
+## 8.3.1 Fitting Classification Trees
+
+```{r}
+attach(Carseats)
+High <- ifelse(Sales <= 8, "No","Yes")
+Carseats <- data.frame(Carseats,High)
+tree.carseats <- tree(High ~ .-Sales, Carseats)
+
+summary(tree.carseats)
+
+plot(tree.carseats)
+text(tree.carseats, pretty = 0)
+tree.carseats
+
+set.seed(2)
+train <- sample(1:nrow(Carseats), 200)
+Carseats.test <- Carseats[-train,]
+High.test <- High[-train]
+tree.carseats <- tree(High ~ .-Sales, Carseats, subset=train)
+tree.pred <- predict(tree.carseats, Carseats.test, type="class")
+table(tree.pred, High.test)
+(86+57)/200
+
+set.seed(3)
+cv.carseats <- cv.tree(tree.carseats,FUN=prune.misclass)
+names(cv.carseats)
+cv.carseats
+
+par(mfrow=c(1,2))
+plot(cv.carseats$size, cv.carseats$dev, type="b")
+plot(cv.carseats$k, cv.carseats$dev, type="b")
+
+prune.carseats <- prune.misclass(tree.carseats, best=9)
+plot(prune.carseats)
+text(prune.carseats, pretty = 0)
+
+tree.pred <- predict(prune.carseats, Carseats.test, type="class")
+table(tree.pred, High.test)
+(94+60)/200
+
+prune.carseats  <- prune.misclass(tree.carseats, best=15)
+plot(prune.carseats)
+text(prune.carseats, pretty = 0)
+tree.pred <- predict(prune.carseats, Carseats.test, type="class")
+table(tree.pred, High.test)
+(86+62)/200
+Carseats <- Carseats[,-12]
+detach(Carseats)
+```
+
+## 8.3.2 Fitting Regression Trees
+
+```{r}
+set.seed(1)
+train <- sample(1:nrow(Boston), nrow(Boston)/2)
+tree.boston <- tree(medv ~., Boston, subset=train)
+summary(tree.boston)
+
+plot(tree.boston)
+text(tree.boston, pretty = 0)
+
+cv.boston <- cv.tree(tree.boston)
+plot(cv.boston$size, cv.boston$dev, type='b')
+
+prune.boston <- prune.tree(tree.boston, best=5)
+plot(prune.boston)
+text(prune.boston, pretty = 0)
+
+yhat <- predict(tree.boston, newdata=Boston[-train,])
+boston.test <- Boston[-train, "medv"]
+plot(yhat, boston.test)
+abline(0,1)
+(mse <- mean((yhat - boston.test)^2))
+sqrt(mse)
+```
+
+## 8.3.3 Bagging and Random Forests
+
+```{r}
+set.seed(1)
+train <- sample(1:nrow(Boston), nrow(Boston)/2)
+boston.test <- Boston[-train ,"medv"]
+
+set.seed(1)
+bag.boston <- randomForest(medv ~ ., data=Boston, subset=train, mtry=13, importance = TRUE)
+bag.boston
+
+yhat.bag <- predict(bag.boston, newdata=Boston[-train,])
+plot(yhat.bag, boston.test)
+abline(0,1)
+mean((yhat.bag-boston.test)^2)
+sqrt(mean((yhat.bag-boston.test)^2))
+
+bag.boston <- randomForest(medv ~ ., data=Boston, subset=train, mtry=13, ntree=25)
+yhat.bag <- predict(bag.boston, newdata=Boston[-train,])
+mean((yhat.bag-boston.test)^2)
+sqrt(mean((yhat.bag-boston.test)^2))
+
+set.seed(1)
+rf.boston <- randomForest(medv ~ ., data=Boston, subset=train, mtry=6, importance =TRUE)
+yhat.rf <- predict(rf.boston, newdata=Boston[-train,])
+mean((yhat.rf-boston.test)^2)
+sqrt(mean((yhat.rf-boston.test)^2))
+
+importance(rf.boston)
+varImpPlot(rf.boston)
+```
+
+## 8.3.4 Boosting
+
+```{r}
+set.seed(1)
+boost.boston <- gbm(medv ~., data=Boston[train,], distribution="gaussian", n.trees=5000, interaction.depth=4)
+summary(boost.boston)
+
+par(mfrow=c(1,2))
+plot(boost.boston, i="rm")
+plot(boost.boston, i="lstat")
+
+yhat.boost=predict(boost.boston, newdata=Boston[-train,], n.trees=5000)
+mean((yhat.boost-boston.test)^2)
+sqrt(mean((yhat.boost-boston.test)^2))
+
+boost.boston <- gbm(medv ~., data=Boston[train,], distribution="gaussian", n.trees=5000, interaction.depth=4, shrinkage=0.2, verbose=F)
+yhat.boost <- predict(boost.boston, newdata=Boston[-train ,],n.trees=5000)
+mean((yhat.boost-boston.test)^2)
+sqrt(mean((yhat.boost-boston.test)^2))
+par(mfrow=c(1,1))
+```
+
+### 5. Suppose we produce ten bootstrapped samples from a data set containing red and green classes. We then apply a classification tree to each bootstrapped sample and, for a specific value of X, produce 10 estimates of P(Class is Red|X): (0.1, 0.15, 0.2, 0.2, 0.55, 0.6, 0.6, 0.65, 0.7, and 0.75) There are two common ways to combine these results together into a single class prediction. One is the majority vote approach discussed in this chapter. The second approach is to classify based on the average probability. In this example, what is the final classification under each of these two approaches?
+
+```{r}
+p <- c(.1,.15,.2,.2,.55,.6,.6,.65,.7,.76)
+# First approach
+ifelse(sum(p > .5) > 5, "Red", "Green")
+# Second approach
+ifelse(mean(p) > .5, "Red", "Green")
+```
+Under the first approach the final classification is Red and under the second approach the final classification is Green.
+
+### 7. In the lab, we applied random forests to the Boston data using mtry=6 and using ntree=25 and ntree=500. Create a plot displaying the test error resulting from random forests on this data set for a more comprehensive range of values for mtry and ntree. You can model your plot after Figure 8.10. Describe the results obtained.
+
+```{r}
+set.seed(123)
+train <- sample(1:nrow(Boston), nrow(Boston)/2)
+boston.test <- Boston[-train ,"medv"]
+mtry <- seq(1,13)
+ntree <- seq(1,101,5)
+err.mat <- matrix(ncol = length(ntree), nrow = length(mtry))
+colnames(err.mat) <- ntree
+row.names(err.mat) <- mtry
+for(m in mtry){
+  for(n in ntree){
+    boston.bag <- randomForest(medv ~ ., data=Boston, subset=train, mtry=m, ntree=n)
+    yhat.bag <- predict(boston.bag, newdata=Boston[-train,])
+    err.mat[m,(n%/%5+1)] <- mean((yhat.bag-boston.test)^2)
+  }
+}
+m.err.mat <- melt(err.mat, varnames=c("mtry value","Number of trees"), value.name = "MSE")
+m.err.mat$`mtry value` <- as.factor(m.err.mat$`mtry value`)
+ggplot(m.err.mat, aes(`Number of trees`,MSE, group = `mtry value`, color = `mtry value`)) +
+  geom_line()
+```
+
+An mtry value between 3 and 5 seems appear to be the best option. This range actually inclues sqrt(p) and p/3 which are both defaults. After about 25 trees, there does not seem to be much improvement.
+
+### 8. In the lab, a classification tree was applied to the Carseats data set after converting Sales into a qualitative response variable. Now we will seek to predict Sales using regression trees and related approaches, treating the response as a quantitative variable.
+
+(a) Split the data set into a training set and a test set.
+
+```{r}
+dim(Carseats)
+set.seed(123)
+train <- sample(1:nrow(Carseats), nrow(Carseats)/2)
+Carseats.train <- Carseats[train,]
+Carseats.test <- Carseats[-train,]
+sales.test <- Carseats.test$Sales
+```
+
+(b) Fit a regression tree to the training set. Plot the tree, and interpret
+the results. What test MSE do you obtain?
+
+```{r}
+tree.carseats <- tree(Sales ~ ., Carseats.train)
+summary(tree.carseats)
+plot(tree.carseats)
+text(tree.carseats, pretty = 0)
+yhat <- predict(tree.carseats, newdata=Carseats.test)
+plot(yhat, sales.test)
+abline(0,1)
+(mse <- mean((yhat - sales.test)^2))
+sqrt(mse)
+```
+Prediction on average is within 2000 unit sales
+
+(c) Use cross-validation in order to determine the optimal level of
+tree complexity. Does pruning the tree improve the test MSE?
+
+```{r}
+cv.carseats <- cv.tree(tree.carseats)
+cv.carseats
+plot(cv.carseats$size, cv.carseats$dev, type='b')
+(best <- cv.carseats$size[which.min(cv.carseats$dev)])
+prune.carseats <- prune.tree(tree.carseats, best=best)
+plot(prune.carseats)
+text(prune.carseats, pretty = 0)
+
+yhat <- predict(prune.carseats, newdata=Carseats.test)
+sales.test <- Carseats.test$Sales
+par(mfrow=c(1,1))
+plot(yhat, sales.test)
+abline(0,1)
+(mse <- mean((yhat - sales.test)^2))
+sqrt(mse)
+```
+Made it worse
+
+(d) Use the bagging approach in order to analyze this data. What test MSE do you obtain? Use the importance() function to determine which variables are most important.
+
+```{r}
+carseat.bag <- randomForest(Sales ~ ., data=Carseats.train, mtry = 10, importance = TRUE)
+yhat.bag <- predict(carseat.bag, newdata=Carseats.test)
+mean((yhat.bag-sales.test)^2)
+sqrt(mean((yhat.bag-sales.test)^2))
+importance(carseat.bag)
+varImpPlot(carseat.bag)
+```
+
+(e) Use random forests to analyze this data. What test MSE do you obtain? Use the importance() function to determine which variables are most important. Describe the effect of m, the number of variables considered at each split, on the error rate obtained.
+
+```{r}
+carseat.rf <- randomForest(Sales ~ ., data=Carseats.train, importance = TRUE)
+yhat.rf <- predict(carseat.rf, newdata=Carseats.test)
+mean((yhat.rf-sales.test)^2)
+sqrt(mean((yhat.rf-sales.test)^2))
+importance(carseat.rf)
+varImpPlot(carseat.rf)
+```
+
+### 10. We now use boosting to predict Salary in the Hitters data set.
+
+(a) Remove the observations for whom the salary information is unknown, and then log-transform the salaries.
+
+```{r}
+small.hitters <- Hitters %>%
+  na.omit(Salary) %>%
+  mutate(Salary = log(Salary))
+```
+
+(b) Create a training set consisting of the first 200 observations, and a test set consisting of the remaining observations.
+
+```{r}
+hitters.train <- small.hitters[1:200,]
+hitters.test <- small.hitters[201:nrow(small.hitters),]
+```
+
+(c) Perform boosting on the training set with 1,000 trees for a range of values of the shrinkage parameter λ. Produce a plot with different shrinkage values on the x-axis and the corresponding training set MSE on the y-axis.
+
+```{r}
+shrinkage <- seq(.001, .1, .001)
+train.mse <- double(100)
+test.mse <- double(100)
+set.seed(123)
+for(i in shrinkage){
+  hitters.boost <- gbm(Salary ~., data=hitters.train, distribution="gaussian", n.trees=1000, shrinkage=i, verbose=F)
+  yhat.boost <- predict(hitters.boost, newdata=hitters.test, n.trees=1000)
+  train.mse[i*1000] <- mean((hitters.boost$train.error)^2)
+  test.mse[i*1000] <- mean((yhat.boost-hitters.test$Salary)^2)
+}
+ggplot(data.frame(shrinkage,train.mse), aes(shrinkage,train.mse)) +
+  geom_line()
+```
+
+(d) Produce a plot with different shrinkage values on the x-axis and the corresponding test set MSE on the y-axis.
+
+```{r}
+ggplot(data.frame(shrinkage,test.mse), aes(shrinkage,test.mse)) +
+  geom_line()
+```
+
+(e) Compare the test MSE of boosting to the test MSE that results from applying two of the regression approaches seen in Chapters 3 and 6.
+
+```{r}
+set.seed(123)
+# Boost
+shrink <- shrinkage[which.min(test.mse)]
+shrink
+hitters.boost <- gbm(Salary ~ ., data=hitters.train, shrinkage = shrink, n.trees = 1000)
+yhat.boost <- predict(hitters.boost, newdata=hitters.test, n.trees = 1000)
+boost.mse <- mean((yhat.boost - hitters.test$Salary)^2)
+
+# Linear regression
+hitters.lm <- lm(Salary ~ ., data=hitters.train)
+yhat.lm <- predict(hitters.lm, newdata=hitters.test)
+lm.mse <- mean((yhat.lm - hitters.test$Salary)^2)
+
+# Lasso
+train.x <- model.matrix(Salary ~ ., hitters.train)[,-19]
+train.y <- hitters.train$Salary
+test.x <- model.matrix(Salary ~ ., hitters.test)[,-19]
+test.y <- hitters.test$Salary
+hitters.lasso <- cv.glmnet(train.x, train.y, alpha=1)
+yhat.lasso <- predict(hitters.lasso,newx=test.x)
+lasso.mse <- mean((yhat.lasso - hitters.test$Salary)^2)
+
+# Compare
+cat("Mean square errors\nBoost:",boost.mse,"\nLinear Regression:",lm.mse,"\nLasso:",lasso.mse,"\n")
+```
+
+(f) Which variables appear to be the most important predictors in the boosted model?
+```{r}
+summary(hitters.boost)
+```
+Top 3 are carrer Atbat, carerr Walks, and career Hits.
+
+(g) Now apply bagging to the training set. What is the test set MSE for this approach?
+```{r}
+hitters.bag <- randomForest(Salary ~ ., data=hitters.train, mtry = 19, importance = TRUE)
+yhat.bag <- predict(hitters.bag, newdata=hitters.test)
+mean((yhat.bag-hitters.test$Salary)^2)
+importance(hitters.bag)
+varImpPlot(hitters.bag)
+```
+
+### 11. This question uses the Caravan data set.
+
+(a) Create a training set consisting of the first 1,000 observations, and a test set consisting of the remaining observations.  
+```{r}
+dim(Caravan)
+summary(Caravan)
+#Set no to 0 and yes to 1
+Caravan$Purchase <- ifelse(Caravan$Purchase == "Yes", 1, 0)
+Caravan.train <- Caravan[1:1000,]
+Caravan.test <- Caravan[1001:nrow(Caravan),]
+```
+
+(b) Fit a boosting model to the training set with Purchase as the response and the other variables as predictors. Use 1,000 trees, and a shrinkage value of 0.01. Which predictors appear to be the most important?
+
+```{r}
+set.seed(123)
+Caravan.boost <- gbm(Purchase ~ ., data = Caravan.train, distribution = "bernoulli", shrinkage = .01, n.trees = 1000)
+summary(Caravan.boost)
+```
+The top 3 are PPERSAUT, MKOOPKLA, MOPLHOOG which are Contribution car policies, Purchasing power class, and High level education
+
+(c) Use the boosting model to predict the response on the test data. Predict that a person will make a purchase if the estimated probability of purchase is greater than 20 %. Form a confusion matrix. What fraction of the people predicted to make a purchase do in fact make one? How does this compare with the results obtained from applying KNN or logistic regression to this data set?
+
+```{r}
+preds.boost <- predict(Caravan.boost, newdata=Caravan.test, n.trees = 1000, type = "response")
+preds.boost <- ifelse(preds.boost > .2, 1, 0)
+table(Caravan.test$Purchase, preds.boost)
+(4420+33)/4822
+
+Caravan.lr <- glm(Purchase ~ ., data = Caravan.train, family = "binomial")
+preds.lr <- predict(Caravan.lr, newdata=Caravan.test, type = "response")
+preds.lr <- ifelse(preds.lr > .2, 1, 0)
+table(Caravan.test$Purchase, preds.lr)
+(4183+58)/4822
+```
+Did better than logistic regression but having a larger would probably increase accuracy
+
+12. Apply boosting, bagging, and random forests to a data set of your choice. Be sure to fit the models on a training set and to evaluate their performance on a test set. How accurate are the results compared to simple methods like linear or logistic regression? Which of these approaches yields the best performance?
+
+```{r}
+library(nycflights13)
+summary(flights)
+dim(flights)
+# Predicting if a plane will be early/on-time or late
+# Convert to 0 and 1 ie early and late
+# also format and/or remove problematic predictors
+small.flights <- flights %>%
+  na.omit(arr_delay) %>%
+  mutate(arr_delay = ifelse(arr_delay <= 0 , 0, 1),
+         carrier = as.factor(carrier),
+         origin = as.factor(origin),
+         dest = as.factor(dest),
+         date = as.factor(paste(year,month,day, sep = "_"))) %>%
+  select(-c(tailnum,sched_dep_time,dep_time,sched_arr_time,
+            arr_time,dep_delay,flight,hour,minute,time_hour,
+            year, month, day))
+summary(small.flights)
+# split data 2/3 train 1/3 test
+set.seed(1)
+train <- sample(1:nrow(small.flights), nrow(small.flights)/3*2)
+flights.train <- small.flights[train,]
+flights.test <- small.flights[-train,]
+
+# Boost
+flights.boost <- gbm(arr_delay ~ ., data = flights.train, distribution = "bernoulli", shrinkage = .01, n.trees = 1000)
+summary(flights.boost)
+preds.boost <- predict(flights.boost, newdata=flights.test, n.trees = 1000, type = "response")
+# above .5 means late
+preds.boost <- ifelse(preds.boost > .5, 1, 0)
+table(flights.test$arr_delay, preds.boost)
+(53288 + 19843)/ 109116
+
+# Bagging
+flights.bag <- randomForest(arr_delay ~ ., data=flights.train, mtry = 6, importance = TRUE)
+# Bagging won't work
+
+# Random forest
+flights.rf <- randomForest(arr_delay ~ ., data=flights.train, importance = TRUE)
+# Random forest won't work
+
+# Logistic regression
+flights.lr <- glm(arr_delay ~ ., data = flights.train, family = "binomial")
+# have to remove 1 entry because model was created on data that did not include LEX as a dest
+flights.test.nolex <- flights.test[which(flights.test$dest != "LEX"),]
+preds.lr <- predict(flights.lr, newdata=flights.test.nolex, type = "response")
+preds.lr <- ifelse(preds.lr > .5, 1, 0)
+table(flights.test.nolex$arr_delay, preds.lr)
+(53598 + 23639) / 109115
+```
+
