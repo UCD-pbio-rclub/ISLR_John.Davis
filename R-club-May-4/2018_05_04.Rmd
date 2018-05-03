@@ -1,0 +1,330 @@
+---
+title: "2018_05_04"
+author: "John D."
+date: "May 4, 2018"
+output:
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## load data
+
+```{r}
+library(ISLR)
+library(ggplot2)
+library(dplyr)
+library(e1071)
+```
+
+# 9.6 Lab: Support Vector Machines
+## 9.6.1 Support Vector Classifier
+```{r}
+set.seed(1)
+x <- matrix(rnorm(20*2), ncol=2)
+y <- c(rep(-1,10), rep(1,10))
+x[y==1,] <- x[y==1,] + 1
+plot(x, col=(3-y))
+
+dat <- data.frame(x=x, y=as.factor(y))
+svmfit <- svm(y ~., data=dat, kernel = "linear", cost = 10, scale = FALSE)
+
+plot(svmfit, dat)
+
+svmfit$index
+summary(svmfit)
+
+svmfit <- svm(y ~ ., data=dat, kernel = "linear", cost = 0.1, scale=FALSE)
+plot(svmfit, dat)
+svmfit$index
+
+set.seed(1)
+tune.out <- tune(svm, y ~ ., data=dat, kernel = "linear", ranges=list(cost=c(0.001, 0.01, 0.1, 1, 5, 10, 100)))
+
+summary(tune.out)
+
+bestmod <- tune.out$best.model
+summary(bestmod)
+
+xtest <- matrix(rnorm(20*2), ncol=2)
+ytest <- sample (c(-1,1), 20, rep=TRUE)
+xtest[ytest==1,] <-  xtest[ytest==1,] + 1
+testdat <- data.frame(x = xtest, y = as.factor(ytest))
+
+ypred <- predict(bestmod, testdat)
+table(predict = ypred, truth = testdat$y)
+
+svmfit <- svm(y ~ ., data=dat, kernel = "linear", cost = .01, scale=FALSE)
+ypred <- predict(svmfit, testdat)
+table(predict = ypred, truth = testdat$y)
+
+x[y==1,] <- x[y==1,] + 0.5
+plot(x, col = (y+3)/2, pch = 19)
+
+dat <- data.frame(x = x, y = as.factor(y))
+svmfit <- svm(y ~ ., data=dat, kernel = "linear", cost = 1e5)
+summary(svmfit)
+plot(svmfit, dat)
+
+svmfit <- svm(y ~ ., data=dat, kernel = "linear", cost = 1)
+summary(svmfit)
+plot(svmfit, dat)
+```
+
+### 1. This problem involves hyperplanes in two dimensions.
+
+(a) Sketch the hyperplane 1 + 3X1 − X2 = 0. Indicate the set of points for which 1 + 3X1 − X2 > 0, as well as the set of points for which 1 + 3X1 − X2 < 0.  
+
+```{r}
+#1 + 3X1 − X2 = 0
+# X2 = -3X1 - 1
+###
+par(mfrow = c(1,1))
+grid.x <- expand.grid(seq(-5,5, length.out = 75),seq(-5,5, length.out = 75))
+grid.y <- as.factor(ifelse((1 + 3*grid.x$Var1 - grid.x$Var2) < 0, -1, 1))
+names(grid.y) <- 1:length(grid.y)
+plot(grid.x, col=c("red","blue")[as.numeric(grid.y)], pch=20, cex=.2)
+abline(1,3)
+```
+
+(b) On the same plot, sketch the hyperplane −2 + X1 + 2X2 = 0. Indicate the set of points for which −2 + X1 + 2X2 > 0, as well as the set of points for which −2 + X1 + 2X2 < 0.
+
+```{r}
+#−2 + X1 + 2X2 = 0
+# X2 = (-X1)/2 + 1
+grid.y2 <- as.factor(ifelse((-2 + grid.x$Var1 + 2*grid.x$Var2) < 0, -1, 1))
+names(grid.y2) <- 1:length(grid.y2)
+plot(grid.x, col=c("red","blue")[as.numeric(grid.y2)], pch=20, cex=.2)
+abline(1,-.5)
+
+par(mfrow = c(1,2))
+plot(grid.x, col=c("red","blue")[as.numeric(grid.y)], pch=20, cex=.2)
+abline(1,3)
+plot(grid.x, col=c("red","blue")[as.numeric(grid.y2)], pch=20, cex=.2)
+abline(1,-.5)
+```
+
+### 3. Here we explore the maximal margin classifier on a toy data set.
+
+(a) We are given n = 7 observations in p = 2 dimensions. For each observation, there is an associated class label.  
+
+|Obs.|X1 |X2 | Y  |
+|----|---|---|--- |
+|  1 | 3 | 4 |Red |
+|  2 | 2 | 2 |Red |
+|  3 | 4 | 4 |Red |
+|  4 | 1 | 4 |Red |
+|  5 | 2 | 1 |Blue|
+|  6 | 4 | 3 |Blue|
+|  7 | 4 | 1 |Blue|
+
+Sketch the observations.
+
+```{r}
+par(mfrow=c(1,1))
+x1 <- c(3,2,4,1,2,4,4)
+x2 <- c(4,2,4,4,1,3,1)
+y <- c(rep("Red",4),rep("Blue",3))
+dat <- data.frame(x1,x2,y)
+
+plot(dat$x1,dat$x2, col = c("Blue","Red")[as.numeric(dat$y)])
+```
+
+(b) Sketch the optimal separating hyperplane, and provide the equation for this hyperplane (of the form (9.1)).
+
+```{r}
+plot(dat$x1,dat$x2, col = c("Blue","Red")[as.numeric(dat$y)])
+abline(-.5,1)
+# .5 - X1 + X2 = 0 
+```
+
+(c) Describe the classification rule for the maximal margin classifier. It should be something along the lines of “Classify to Red if β0 + β1X1 + β2X2 > 0, and classify to Blue otherwise.” Provide the values for β0, β1, and β2.
+
+β0 = .5  
+β1 = -1  
+β2 = 1  
+Classify to Blue if β0 + β1X1 + β2X2 < 0, and classify to Red otherwise.
+
+(d) On your sketch, indicate the margin for the maximal margin hyperplane.
+
+```{r}
+plot(dat$x1,dat$x2, col = c("Blue","Red")[as.numeric(dat$y)])
+abline(-.5,1)
+abline(0,1, col = "Red")
+abline(-1,1, col = "Red")
+#Close enough
+```
+
+(e) Indicate the support vectors for the maximal margin classifier.
+
+```{r}
+plot(dat$x1,dat$x2, col = c("Blue","Red")[as.numeric(dat$y)])
+abline(-.5,1)
+abline(0,1, col = "Red")
+abline(-1,1, col = "Red")
+points(dat$x1[c(2,3,5,6)],dat$x2[c(2,3,5,6)], pch=2, cex=2)
+```
+
+(f) Argue that a slight movement of the seventh observation would not affect the maximal margin hyperplane.
+
+```{r}
+dat[7,1:2] <- dat[7,1:2] + 1
+
+plot(dat$x1,dat$x2, col = c("Blue","Red")[as.numeric(dat$y)])
+abline(-.5,1)
+abline(0,1, col = "Red")
+abline(-1,1, col = "Red")
+points(dat$x1[c(2,3,5,6)],dat$x2[c(2,3,5,6)], pch=2, cex=2)
+points(dat$x1[7],dat$x2[7], pch=4, cex=2)
+# Didn't change
+dat[7,1:2] <- dat[7,1:2] - 1
+
+```
+
+(g) Sketch a hyperplane that is not the optimal separating hyperplane, and provide the equation for this hyperplane.
+
+```{r}
+plot(dat$x1,dat$x2, col = c("Blue","Red")[as.numeric(dat$y)])
+abline(.25,.75)
+# -.25 -.75X1 + .75X2 = 0 
+```
+
+(h) Draw an additional observation on the plot so that the two classes are no longer separable by a hyperplane.
+
+```{r}
+plot(dat$x1,dat$x2, col = c("Blue","Red")[as.numeric(dat$y)])
+points(2,3, col = "Blue")
+```
+
+### 6. At the end of Section 9.6.1, it is claimed that in the case of data that is just barely linearly separable, a support vector classifier with a small value of cost that misclassifies a couple of training observations may perform better on test data than one with a huge value of cost that does not misclassify any training observations. You will now investigate this claim.
+
+(a) Generate two-class data with p = 2 in such a way that the classes are just barely linearly separable.
+
+```{r}
+set.seed(123)
+x <- matrix(rnorm(1000), ncol=2)
+y <- ifelse(x[,2] > .2, -1, 1)
+plot(x, col=(3-y))
+dat <- data.frame(x=x, y=as.factor(y))
+```
+
+(b) Compute the cross-validation error rates for support vector classifiers with a range of cost values. How many training errors are misclassified for each value of cost considered, and how does this relate to the cross-validation errors obtained?
+
+```{r}
+set.seed(1)
+tune.out <- tune(svm, y ~ ., data=dat, kernel = "linear", ranges=list(cost=c(0.001, 0.01, 0.1, 1, 5, 10, 100)))
+
+summary(tune.out)
+
+bestmod <- tune.out$best.model
+summary(bestmod)
+```
+
+(c) Generate an appropriate test data set, and compute the test errors corresponding to each of the values of cost considered. Which value of cost leads to the fewest test errors, and how does this compare to the values of cost that yield the fewest training errors and the fewest cross-validation errors?
+
+```{r}
+xtest <- matrix(rnorm(1000), ncol=2)
+ytest <- ifelse(xtest[,2] > .2, -1, 1)
+costs <- c(0.001, 0.01, 0.1, 1, 5, 10, 100,1000,10000)
+
+for(cost in costs){
+  svmfit <- svm(y ~ ., data=dat, kernel = "linear", cost = cost, scale=FALSE)
+  ypred <- predict(svmfit, xtest)
+  cat("Error for cost value:", cost, "\n")
+  print(table(predict = ypred, truth = ytest))
+  cat(sum(ypred==ytest)/length(ytest)*100,"% of test cases correctly classified\n", sep = "")
+}
+```
+
+(d) Discuss your results.
+
+It appears that a lower cost was able to perform better or tied with higher costs.
+
+###7. In this problem, you will use support vector approaches in order to predict whether a given car gets high or low gas mileage based on the Auto data set.
+
+(a) Create a binary variable that takes on a 1 for cars with gas mileage above the median, and a 0 for cars with gas mileage below the median.
+
+```{r}
+summary(Auto)
+Auto$efficiency <- as.factor(ifelse(Auto$mpg > median(Auto$mpg), 1, 0))
+```
+
+(b) Fit a support vector classifier to the data with various values of cost, in order to predict whether a car gets high or low gas mileage. Report the cross-validation errors associated with different values of this parameter. Comment on your results.
+
+```{r}
+set.seed(1)
+tune.out <- tune(svm, efficiency ~ ., data=Auto, kernel = "linear", ranges=list(cost=c(0.001, 0.01, 0.1, 1, 5, 10, 100)))
+
+summary(tune.out)
+
+bestmod <- tune.out$best.model
+summary(bestmod)
+```
+
+Best cost was somewhere around 1 and 5.
+
+### 8. This problem involves the OJ data set which is part of the ISLR package.
+
+(a) Create a training set containing a random sample of 800 observations, and a test set containing the remaining observations.
+
+```{r}
+summary(OJ)
+set.seed(3251)
+train <- sample(1:nrow(OJ), 800, replace = F)
+dat.train <- OJ[train,]
+dat.test <- OJ[-train,]
+```
+
+(b) Fit a support vector classifier to the training data using cost=0.01, with Purchase as the response and the other variables as predictors. Use the summary() function to produce summary statistics, and describe the results obtained.
+
+```{r}
+svmfit <- svm(Purchase ~ ., data = dat.train, kernel = "linear", cost = 0.01, scale = TRUE)
+summary(svmfit)
+```
+About 218 support vectors from each class
+
+(c) What are the training and test error rates?
+
+```{r}
+pred.train <- predict(svmfit, dat.train)
+table(predict = pred.train, truth = dat.train$Purchase)
+100 - sum(pred.train == dat.train$Purchase)/length(dat.train$Purchase)*100
+# 16.5% training error
+
+pred.test <- predict(svmfit, dat.test)
+table(predict = pred.test, truth = dat.test$Purchase)
+100 - sum(pred.test == dat.test$Purchase)/length(dat.test$Purchase)*100
+# 16.7% test error
+```
+
+
+(d) Use the tune() function to select an optimal cost. Consider values in the range 0.01 to 10.
+
+```{r}
+set.seed(567)
+tune.out <- tune(svm, Purchase ~ ., data=dat.train, kernel = "linear", ranges=list(cost=c(0.01, 0.1, 1, 5, 10)))
+
+summary(tune.out)
+
+bestmod <- tune.out$best.model
+summary(bestmod)
+```
+
+(e) Compute the training and test error rates using this new value for cost.
+
+```{r}
+pred.train <- predict(bestmod, dat.train)
+table(predict = pred.train, truth = dat.train$Purchase)
+100 - sum(pred.train == dat.train$Purchase)/length(dat.train$Purchase)*100
+# 16.5% training error
+
+pred.test <- predict(bestmod, dat.test)
+table(predict = pred.test, truth = dat.test$Purchase)
+100 - sum(pred.test == dat.test$Purchase)/length(dat.test$Purchase)*100
+# 16.7% test error
+```
+
+The predicted best cost is the same as the previous steps
