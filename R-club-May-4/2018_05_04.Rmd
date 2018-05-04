@@ -80,7 +80,7 @@ plot(svmfit, dat)
 
 ```{r}
 #1 + 3X1 − X2 = 0
-# X2 = -3X1 - 1
+# X2 = 3X1 + 1
 ###
 par(mfrow = c(1,1))
 grid.x <- expand.grid(seq(-5,5, length.out = 75),seq(-5,5, length.out = 75))
@@ -138,14 +138,14 @@ plot(dat$x1,dat$x2, col = c("Blue","Red")[as.numeric(dat$y)])
 ```{r}
 plot(dat$x1,dat$x2, col = c("Blue","Red")[as.numeric(dat$y)])
 abline(-.5,1)
-# .5 - X1 + X2 = 0 
+# -.5 + X1 - X2 = 0 
 ```
 
 (c) Describe the classification rule for the maximal margin classifier. It should be something along the lines of “Classify to Red if β0 + β1X1 + β2X2 > 0, and classify to Blue otherwise.” Provide the values for β0, β1, and β2.
 
-β0 = .5  
-β1 = -1  
-β2 = 1  
+β0 = -.5  
+β1 = 1  
+β2 = -1  
 Classify to Blue if β0 + β1X1 + β2X2 < 0, and classify to Red otherwise.
 
 (d) On your sketch, indicate the margin for the maximal margin hyperplane.
@@ -189,7 +189,7 @@ dat[7,1:2] <- dat[7,1:2] - 1
 ```{r}
 plot(dat$x1,dat$x2, col = c("Blue","Red")[as.numeric(dat$y)])
 abline(.25,.75)
-# -.25 -.75X1 + .75X2 = 0 
+# .25 +.75X1 - X2 = 0 
 ```
 
 (h) Draw an additional observation on the plot so that the two classes are no longer separable by a hyperplane.
