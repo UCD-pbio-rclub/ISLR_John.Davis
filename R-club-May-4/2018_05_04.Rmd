@@ -305,7 +305,7 @@ table(predict = pred.test, truth = dat.test$Purchase)
 
 ```{r}
 set.seed(567)
-tune.out <- tune(svm, Purchase ~ ., data=dat.train, kernel = "linear", ranges=list(cost=c(0.01, 0.1, 1, 5, 10)))
+tune.out <- tune(svm, Purchase ~ ., data=dat.train, kernel = "linear", ranges=list(cost=c(0.01, 0.1, 1, 5, 10)), scale = T)
 
 summary(tune.out)
 
